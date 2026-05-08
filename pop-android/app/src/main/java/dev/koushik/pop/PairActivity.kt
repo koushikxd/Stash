@@ -1,6 +1,9 @@
 package dev.koushik.pop
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +13,8 @@ import android.widget.EditText
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import dev.koushik.pop.data.Secret
 import dev.koushik.pop.net.NsdHelper
 import okhttp3.OkHttpClient
@@ -44,8 +49,10 @@ class PairActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_pair)
+        requestNotificationPermission()
 
         val hostInput = findViewById<EditText>(R.id.hostInput)
         val portInput = findViewById<EditText>(R.id.portInput)
@@ -108,6 +115,12 @@ class PairActivity : AppCompatActivity() {
                 }
             }, "pop-pair-ping").start()
         }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 12)
     }
 
     private fun launchScanner() {

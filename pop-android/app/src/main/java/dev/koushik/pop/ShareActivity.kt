@@ -42,6 +42,7 @@ class ShareActivity : Activity() {
             }
             mainHandler.post {
                 if (result is LinkSender.Result.Unauthorized) {
+                    RepairNotification.show(applicationContext)
                     val intent = Intent(this, PairActivity::class.java)
                         .putExtra(PairActivity.EXTRA_REASON, PairActivity.REASON_UNAUTHORIZED)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

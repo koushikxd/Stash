@@ -9,6 +9,7 @@ class PopApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        RepairNotification.createChannel(this)
         connectivityWatcher = ConnectivityWatcher(this)
         connectivityWatcher.start()
     }

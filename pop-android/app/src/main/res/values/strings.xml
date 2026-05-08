@@ -34,4 +34,8 @@
     <string name="toast_no_mac">Mac not found on Wi-Fi</string>
     <string name="toast_offline">Mac offline — saved</string>
     <string name="toast_not_a_link">Not a link</string>
+
+    <string name="repair_channel_name">Pairing alerts</string>
+    <string name="repair_title">Re-pair pop</string>
+    <string name="repair_body">Your Mac secret changed. Tap to scan the QR again.</string>
 </resources>
