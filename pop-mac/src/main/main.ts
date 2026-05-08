@@ -12,12 +12,11 @@ if (!gotLock) {
 app.whenReady().then(async () => {
   if (app.dock) app.dock.hide();
 
+  store.init();
   app.setLoginItemSettings({
-    openAtLogin: true,
+    openAtLogin: store.getSettings().launchAtLogin,
     openAsHidden: true,
   });
-
-  store.init();
   const secret = store.getSecret();
   const port = store.getPort();
 

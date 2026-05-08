@@ -2,10 +2,19 @@ import * as http from 'http';
 import { EventEmitter } from 'events';
 import { verifyBearer } from './auth';
 import * as store from './store';
+import { fetchTitle } from './metadata';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
 export const events = new EventEmitter();
+
+function enrichTitle(id: string, url: string): void {
+  void fetchTitle(url).then((title) => {
+    if (!title) return;
+    store.updateLinkTitle(id, title);
+    events.emit('link-updated', id);
+  });
+}
 
 function readBody(req: http.IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -83,6 +92,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       sentAt: typeof body.sentAt === 'number' ? body.sentAt : undefined,
     });
     events.emit('link-added', link);
+    if (!link.title) enrichTitle(link.id, link.url);
     send(res, 201, { id: link.id });
     return;
   }
@@ -116,6 +126,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
         sentAt: typeof obj.sentAt === 'number' ? obj.sentAt : undefined,
       });
       events.emit('link-added', link);
+      if (!link.title) enrichTitle(link.id, link.url);
       accepted++;
     }
     send(res, 200, { accepted });

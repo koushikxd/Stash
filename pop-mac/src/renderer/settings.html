@@ -22,6 +22,13 @@
         <div class="kv"><span>Secret</span><code id="secret">—</code></div>
       </details>
 
+      <section class="prefs">
+        <label><input id="launch" type="checkbox" /> Launch at login</label>
+        <label><input id="notifications" type="checkbox" /> Show notifications</label>
+        <label class="port-row"><span>Port</span><input id="portInput" type="number" min="1" max="65535" /></label>
+        <div id="restart" class="restart">Restart pop for the new port to take effect.</div>
+      </section>
+
       <button id="reset" class="reset" type="button">Reset secret</button>
       <p class="footnote">Resetting unpairs your phone — you'll need to re-scan.</p>
     </main>

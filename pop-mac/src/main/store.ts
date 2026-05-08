@@ -100,11 +100,33 @@ export function resetSecret(): string {
 }
 
 export function getSettings(): Settings {
-  return cache.settings;
+  return { ...cache.settings };
+}
+
+export function updateSettings(settings: Partial<Settings>): Settings {
+  cache.settings = { ...cache.settings, ...settings };
+  write();
+  events.emit('settings-changed', getSettings());
+  return getSettings();
+}
+
+export function setPort(port: number): void {
+  if (!Number.isInteger(port) || port < 1 || port > 65535 || cache.port === port) return;
+  cache.port = port;
+  write();
+  events.emit('port-changed', port);
 }
 
 export function getLinks(): Link[] {
   return cache.links.slice().sort((a, b) => b.receivedAt - a.receivedAt);
+}
+
+export function updateLinkTitle(id: string, title: string): void {
+  const link = cache.links.find((l) => l.id === id);
+  if (!link || link.title === title) return;
+  link.title = title;
+  write();
+  events.emit('links-changed');
 }
 
 function hostnameOf(url: string): string {

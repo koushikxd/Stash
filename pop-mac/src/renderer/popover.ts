@@ -33,6 +33,15 @@ async function render(): Promise<void> {
   for (const link of links) {
     const li = document.createElement('li');
 
+    const favicon = document.createElement('img');
+    favicon.className = 'favicon';
+    favicon.alt = '';
+    if (link.hostname) {
+      void window.popApi.getFavicon(link.hostname).then((src) => {
+        if (src) favicon.src = src;
+      });
+    }
+
     const body = document.createElement('div');
     body.className = 'body';
 
@@ -57,6 +66,7 @@ async function render(): Promise<void> {
       void window.popApi.openExternal(link.url);
     });
 
+    li.appendChild(favicon);
     li.appendChild(body);
     li.appendChild(openBtn);
 

@@ -1,10 +1,11 @@
 import * as path from 'path';
-import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow } from 'electron';
+import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow, Notification } from 'electron';
 import { menubar, Menubar } from 'menubar';
 import * as QRCode from 'qrcode';
 import * as store from './store';
 import { events as serverEvents } from './server';
 import * as mdns from './mdns';
+import { getFavicon } from './favicon';
 
 const ASSETS = path.join(app.getAppPath(), 'assets');
 const ICON_IDLE = path.join(ASSETS, 'iconTemplate.png');
@@ -93,6 +94,15 @@ function openSettings(): void {
   });
 }
 
+function showLinkNotification(): void {
+  if (!store.getSettings().notifications || !Notification.isSupported()) return;
+  const n = new Notification({ title: 'pop', body: 'New link from your phone' });
+  n.on('click', () => {
+    if (mb?.window) mb.showWindow();
+  });
+  n.show();
+}
+
 export function init(): void {
   const idleImg = nativeImage.createFromPath(ICON_IDLE);
   idleImg.setTemplateImage(true);
@@ -139,12 +149,22 @@ export function init(): void {
   ipcMain.handle('pop:open', (_evt, url: string) => {
     void shell.openExternal(url);
   });
+  ipcMain.handle('pop:getFavicon', (_evt, hostname: string) => getFavicon(hostname));
 
   ipcMain.handle('pop:getPairing', () => ({
     secret: store.getSecret(),
     port: store.getPort(),
     paired: store.isPaired(),
   }));
+  ipcMain.handle('pop:getSettings', () => store.getSettings());
+  ipcMain.handle('pop:updateSettings', (_evt, settings: Partial<store.Settings>) => {
+    const next = store.updateSettings(settings);
+    app.setLoginItemSettings({ openAtLogin: next.launchAtLogin, openAsHidden: true });
+    return next;
+  });
+  ipcMain.handle('pop:setPort', (_evt, port: number) => {
+    store.setPort(port);
+  });
   ipcMain.handle('pop:resetSecret', () => {
     const secret = store.resetSecret();
     return { secret, port: store.getPort() };
@@ -158,6 +178,16 @@ export function init(): void {
   });
 
   serverEvents.on('link-added', () => {
+    refreshIcon();
+    notifyLinks();
+    showLinkNotification();
+  });
+
+  serverEvents.on('link-updated', () => {
+    notifyLinks();
+  });
+
+  store.events.on('links-changed', () => {
     refreshIcon();
     notifyLinks();
   });
