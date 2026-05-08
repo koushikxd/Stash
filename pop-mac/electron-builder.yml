@@ -8,6 +8,10 @@ files:
   - package.json
 mac:
   category: public.app-category.utilities
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
   target:
     - dmg
   extendInfo:
@@ -15,3 +19,6 @@ mac:
     NSLocalNetworkUsageDescription: "pop discovers your Mac on the local Wi-Fi to receive links from your phone."
     NSBonjourServices:
       - _pop._tcp
+afterSign: build/notarize.js
+dmg:
+  artifactName: ${productName}-${version}-${arch}.${ext}

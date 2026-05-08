@@ -10,11 +10,13 @@
     "build:icons": "node scripts/make-icons.js",
     "build": "npm run clean && npm run build:icons && npm run build:ts && npm run build:assets",
     "start": "electron .",
-    "dev": "npm run build && electron ."
+    "dev": "npm run build && electron .",
+    "dist": "npm run build && electron-builder --mac dmg"
   },
   "author": "koushik",
   "license": "MIT",
   "dependencies": {
+    "@electron/notarize": "^2.5.0",
     "bonjour-service": "^1.2.1",
     "menubar": "^9.5.1",
     "qrcode": "^1.5.4"
