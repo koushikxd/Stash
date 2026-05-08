@@ -1,0 +1,17 @@
+appId: dev.koushik.pop
+productName: pop
+directories:
+  output: out
+files:
+  - dist/**/*
+  - assets/**/*
+  - package.json
+mac:
+  category: public.app-category.utilities
+  target:
+    - dmg
+  extendInfo:
+    LSUIElement: true
+    NSLocalNetworkUsageDescription: "pop discovers your Mac on the local Wi-Fi to receive links from your phone."
+    NSBonjourServices:
+      - _pop._tcp

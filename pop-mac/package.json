@@ -1,0 +1,28 @@
+{
+  "name": "pop-mac",
+  "version": "0.1.0",
+  "description": "pop — Mac menubar receiver for links shared from your phone.",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build:ts": "tsc -p tsconfig.json",
+    "build:assets": "node scripts/copy-assets.js",
+    "build:icons": "node scripts/make-icons.js",
+    "build": "npm run clean && npm run build:icons && npm run build:ts && npm run build:assets",
+    "start": "electron .",
+    "dev": "npm run build && electron ."
+  },
+  "author": "koushik",
+  "license": "MIT",
+  "dependencies": {
+    "bonjour-service": "^1.2.1",
+    "menubar": "^9.5.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.5",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,118 @@
+import { app } from 'electron';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
+
+export interface Link {
+  id: string;
+  url: string;
+  title: string | null;
+  hostname: string;
+  receivedAt: number;
+}
+
+export interface Settings {
+  notifications: boolean;
+  launchAtLogin: boolean;
+  maxHistory: number;
+}
+
+interface StoreShape {
+  secret: string;
+  port: number;
+  links: Link[];
+  settings: Settings;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  notifications: false,
+  launchAtLogin: true,
+  maxHistory: 1000,
+};
+
+const DEFAULT_PORT = 7891;
+
+let cache: StoreShape;
+let storePath: string;
+
+function read(): StoreShape {
+  try {
+    const raw = fs.readFileSync(storePath, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<StoreShape>;
+    return {
+      secret: parsed.secret ?? randomUUID(),
+      port: parsed.port ?? DEFAULT_PORT,
+      links: Array.isArray(parsed.links) ? parsed.links : [],
+      settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+    };
+  } catch {
+    return {
+      secret: randomUUID(),
+      port: DEFAULT_PORT,
+      links: [],
+      settings: { ...DEFAULT_SETTINGS },
+    };
+  }
+}
+
+function write(): void {
+  fs.writeFileSync(storePath, JSON.stringify(cache, null, 2), 'utf8');
+}
+
+export function init(): void {
+  storePath = path.join(app.getPath('userData'), 'pop-store.json');
+  cache = read();
+  write();
+}
+
+export function getSecret(): string {
+  return cache.secret;
+}
+
+export function getPort(): number {
+  return cache.port;
+}
+
+export function getSettings(): Settings {
+  return cache.settings;
+}
+
+export function getLinks(): Link[] {
+  return cache.links.slice().sort((a, b) => b.receivedAt - a.receivedAt);
+}
+
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+export function addLink(input: { url: string; title?: string | null; sentAt?: number }): Link {
+  const link: Link = {
+    id: randomUUID(),
+    url: input.url,
+    title: input.title ?? null,
+    hostname: hostnameOf(input.url),
+    receivedAt: input.sentAt ?? Date.now(),
+  };
+  cache.links.push(link);
+  if (cache.links.length > cache.settings.maxHistory) {
+    cache.links.splice(0, cache.links.length - cache.settings.maxHistory);
+  }
+  write();
+  return link;
+}
+
+export function removeLink(id: string): void {
+  const before = cache.links.length;
+  cache.links = cache.links.filter((l) => l.id !== id);
+  if (cache.links.length !== before) write();
+}
+
+export function clearAll(): void {
+  if (cache.links.length === 0) return;
+  cache.links = [];
+  write();
+}
