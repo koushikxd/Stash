@@ -3,16 +3,29 @@
     <string name="app_name">pop</string>
 
     <string name="pair_title">Pair with Mac</string>
+    <string name="pair_intro">Open pop on your Mac. The settings window shows a QR code — scan it.</string>
+    <string name="pair_scan">Scan QR on Mac</string>
+    <string name="pair_rescan">Re-pair (scan again)</string>
+    <string name="pair_already">Already paired ✓</string>
+    <string name="pair_unauthorized_banner">Mac rotated its secret. Re-scan the QR to continue.</string>
+    <string name="pair_manual_summary">Or paste manually</string>
     <string name="pair_host_hint">Mac IP (e.g. 192.168.1.42)</string>
     <string name="pair_port_hint">Port</string>
-    <string name="pair_secret_hint">Secret (UUID from Mac console)</string>
-    <string name="pair_save">Save</string>
+    <string name="pair_secret_hint">Secret (UUID from Mac)</string>
+    <string name="pair_save">Save manual entry</string>
     <string name="pair_discover">Discover via NSD</string>
     <string name="pair_status_idle">Not paired</string>
     <string name="pair_status_saved">Paired ✓</string>
     <string name="pair_status_unreachable">Saved, but Mac unreachable</string>
     <string name="pair_status_discovering">Searching for Mac…</string>
     <string name="pair_status_not_found">Mac not found on Wi-Fi</string>
+    <string name="pair_status_verifying">Verifying with Mac…</string>
+    <string name="pair_status_invalid_qr">QR didn\'t match — make sure it\'s the pop QR.</string>
+
+    <string name="scan_title">Scan pairing QR</string>
+    <string name="scan_hint">Point your camera at the QR shown by pop on Mac.</string>
+    <string name="scan_cancel">Cancel</string>
+    <string name="scan_perm_denied">Camera permission denied. Use manual entry instead.</string>
 
     <string name="toast_sent">Sent to Mac</string>
     <string name="toast_not_paired">Pair pop first</string>

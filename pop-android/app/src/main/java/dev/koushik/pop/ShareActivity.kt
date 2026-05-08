@@ -41,7 +41,14 @@ class ShareActivity : Activity() {
                 helper.shutdown()
             }
             mainHandler.post {
-                toast(toastFor(result))
+                if (result is LinkSender.Result.Unauthorized) {
+                    val intent = Intent(this, PairActivity::class.java)
+                        .putExtra(PairActivity.EXTRA_REASON, PairActivity.REASON_UNAUTHORIZED)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                } else {
+                    toast(toastFor(result))
+                }
                 finish()
             }
         }, "pop-share-send").start()
@@ -60,9 +67,7 @@ class ShareActivity : Activity() {
     }
 
     private fun extractFirstUrl(text: String): String? {
-        // Common case: the share extra is just the URL.
         if (looksLikeHttpUrl(text)) return text
-        // Fallback: find first http(s) token in mixed text (e.g. "Look: https://x.com")
         return text.split(Regex("\\s+")).firstOrNull { looksLikeHttpUrl(it) }
     }
 
