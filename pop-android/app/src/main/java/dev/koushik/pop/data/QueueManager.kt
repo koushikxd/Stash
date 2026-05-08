@@ -32,6 +32,18 @@ object QueueManager {
         }
     }
 
+    fun removeFirst(ctx: Context, count: Int) {
+        if (count <= 0) return
+        synchronized(this) {
+            val links = readAllLocked(ctx)
+            if (count >= links.size) {
+                prefs(ctx).edit().remove(KEY_LINKS).apply()
+            } else {
+                writeLocked(ctx, links.drop(count))
+            }
+        }
+    }
+
     fun isEmpty(ctx: Context): Boolean = readAll(ctx).isEmpty()
 
     private fun readAllLocked(ctx: Context): List<QueuedLink> {

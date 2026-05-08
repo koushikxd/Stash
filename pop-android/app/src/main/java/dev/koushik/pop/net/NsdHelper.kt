@@ -24,7 +24,7 @@ class NsdHelper(context: Context) {
     private val handler = Handler(workerThread.looper)
 
     /** Blocks the calling thread until first successful resolve or timeout. */
-    fun findMac(timeoutMs: Long = 3000): Pair<String, Int>? {
+    fun findMac(timeoutMs: Long = 3000, expectedServiceName: String? = null): Pair<String, Int>? {
         val pending = ArrayDeque<NsdServiceInfo>()
         val pendingLock = Any()
         val resolving = AtomicBoolean(false)
@@ -86,7 +86,9 @@ class NsdHelper(context: Context) {
 
             override fun onServiceFound(info: NsdServiceInfo) {
                 val name = info.serviceName ?: return
-                if (!name.startsWith("pop-")) return
+                if (expectedServiceName != null) {
+                    if (name != expectedServiceName) return
+                } else if (!name.startsWith("pop-")) return
                 synchronized(pendingLock) { pending.addLast(info) }
                 scheduleDrain()
             }

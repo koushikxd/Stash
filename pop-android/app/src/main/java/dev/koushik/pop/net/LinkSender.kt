@@ -154,8 +154,12 @@ object LinkSender {
             standardClient.newCall(req).execute().use { resp ->
                 when (resp.code) {
                     200 -> {
-                        QueueManager.clear(ctx)
-                        FlushResult.Flushed(links.size)
+                        val accepted = resp.body?.string()?.let { body ->
+                            try { JSONObject(body).optInt("accepted", -1) } catch (_: Throwable) { -1 }
+                        } ?: -1
+                        if (accepted < 0) return FlushResult.Failed("missing accepted")
+                        QueueManager.removeFirst(ctx, accepted)
+                        if (accepted == links.size) FlushResult.Flushed(accepted) else FlushResult.Failed("accepted $accepted of ${links.size}")
                     }
                     401 -> FlushResult.Unauthorized
                     else -> FlushResult.Failed("HTTP ${resp.code}")

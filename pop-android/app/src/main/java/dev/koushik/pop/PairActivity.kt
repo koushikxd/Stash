@@ -145,20 +145,18 @@ class PairActivity : AppCompatActivity() {
         val parsed = try { JSONObject(raw) } catch (_: Throwable) { null }
         val secret = parsed?.optString("secret")?.takeIf { it.isNotBlank() }
         val port = parsed?.optInt("port", 0) ?: 0
+        val serviceName = parsed?.optString("serviceName")?.takeIf { it.startsWith("pop-") }
         if (parsed == null || parsed.optInt("v", -1) != 1 || secret == null || port !in 1..65535) {
             status.setText(R.string.pair_status_invalid_qr)
             return
         }
-        // Save secret + port immediately. Host will be resolved via NSD on the verify step
-        // (and refreshed automatically on every Wi-Fi change in LinkSender).
-        Secret.save(this, host = "", port = port, secret = secret)
         banner.visibility = View.GONE
         status.setText(R.string.pair_status_verifying)
 
         val appCtx = applicationContext
         Thread({
             val helper = NsdHelper(appCtx)
-            val resolved = try { helper.findMac(4000) } finally { helper.shutdown() }
+            val resolved = try { helper.findMac(4000, serviceName) } finally { helper.shutdown() }
             if (resolved == null) {
                 mainHandler.post {
                     status.setText(R.string.pair_status_not_found)
@@ -167,9 +165,8 @@ class PairActivity : AppCompatActivity() {
                 return@Thread
             }
             val (host, resolvedPort) = resolved
-            // Trust the QR's port over mDNS port (they should match). Cache the host.
-            Secret.saveHostPort(appCtx, host, resolvedPort)
             val ok = ping(host, resolvedPort, secret)
+            if (ok) Secret.save(appCtx, host, resolvedPort, secret)
             mainHandler.post {
                 status.setText(if (ok) R.string.pair_status_saved else R.string.pair_status_unreachable)
                 renderPairedState(false)
