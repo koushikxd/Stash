@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">pop</string>
+
+    <string name="pair_title">Pair with Mac</string>
+    <string name="pair_host_hint">Mac IP (e.g. 192.168.1.42)</string>
+    <string name="pair_port_hint">Port</string>
+    <string name="pair_secret_hint">Secret (UUID from Mac console)</string>
+    <string name="pair_save">Save</string>
+    <string name="pair_discover">Discover via NSD</string>
+    <string name="pair_status_idle">Not paired</string>
+    <string name="pair_status_saved">Paired ✓</string>
+    <string name="pair_status_unreachable">Saved, but Mac unreachable</string>
+    <string name="pair_status_discovering">Searching for Mac…</string>
+    <string name="pair_status_not_found">Mac not found on Wi-Fi</string>
+
+    <string name="toast_sent">Sent to Mac</string>
+    <string name="toast_not_paired">Pair pop first</string>
+    <string name="toast_unauthorized">Bad secret — re-pair</string>
+    <string name="toast_no_mac">Mac not found on Wi-Fi</string>
+    <string name="toast_offline">Mac offline — saved</string>
+    <string name="toast_not_a_link">Not a link</string>
+</resources>
