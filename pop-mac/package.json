@@ -16,10 +16,12 @@
   "license": "MIT",
   "dependencies": {
     "bonjour-service": "^1.2.1",
-    "menubar": "^9.5.1"
+    "menubar": "^9.5.1",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
+    "@types/qrcode": "^1.5.5",
     "electron": "^34.0.0",
     "electron-builder": "^25.0.5",
     "rimraf": "^6.0.1",

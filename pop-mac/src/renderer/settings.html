@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>pop — Settings</title>
+    <link rel="stylesheet" href="settings.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Pair your phone</h1>
+      <p class="hint">Open <strong>pop</strong> on Android, tap <em>Scan QR on Mac</em>, point the camera here.</p>
+
+      <div id="qr-wrap">
+        <img id="qr" alt="Pairing QR" />
+      </div>
+
+      <div id="status" class="status pending">Waiting for phone…</div>
+
+      <details class="manual">
+        <summary>Can't scan? Enter manually</summary>
+        <div class="kv"><span>Port</span><code id="port">—</code></div>
+        <div class="kv"><span>Secret</span><code id="secret">—</code></div>
+      </details>
+
+      <button id="reset" class="reset" type="button">Reset secret</button>
+      <p class="footnote">Resetting unpairs your phone — you'll need to re-scan.</p>
+    </main>
+    <script src="settings.js"></script>
+  </body>
+</html>

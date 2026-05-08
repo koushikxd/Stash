@@ -30,6 +30,10 @@ app.whenReady().then(async () => {
   mdns.start(port, secret);
   tray.init();
 
+  if (!store.isPaired()) {
+    tray.showSettings();
+  }
+
   powerMonitor.on('resume', () => {
     console.log('[pop] resume — restarting mdns');
     void mdns.restart();

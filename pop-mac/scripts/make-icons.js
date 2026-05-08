@@ -128,6 +128,27 @@ function drawUnread(size) {
   return px;
 }
 
+// "Pulse" frame: idle glyph plus a small filled dot at the centre — signifies
+// the app is waiting for a phone to pair. Animation toggles idle ↔ pulse.
+function drawPulse(size) {
+  const px = drawIdle(size);
+  const r = Math.max(1, Math.round(size * 0.12));
+  const cx = Math.floor(size / 2);
+  const cy = Math.floor(size / 2);
+  for (let y = -r; y <= r; y++) {
+    for (let x = -r; x <= r; x++) {
+      if (x * x + y * y <= r * r) {
+        const yy = cy + y;
+        const xx = cx + x;
+        if (yy >= 0 && yy < size && xx >= 0 && xx < size) {
+          px[yy * size + xx] = 255;
+        }
+      }
+    }
+  }
+  return px;
+}
+
 function writeIcon(filename, size, drawer) {
   const buf = encodePng(size, size, drawer(size));
   const out = path.join(__dirname, '..', 'assets', filename);
@@ -143,3 +164,6 @@ writeIcon('iconTemplate@3x.png', 48, drawIdle);
 writeIcon('icon-unreadTemplate.png', 16, drawUnread);
 writeIcon('icon-unreadTemplate@2x.png', 32, drawUnread);
 writeIcon('icon-unreadTemplate@3x.png', 48, drawUnread);
+writeIcon('iconPulseTemplate.png', 16, drawPulse);
+writeIcon('iconPulseTemplate@2x.png', 32, drawPulse);
+writeIcon('iconPulseTemplate@3x.png', 48, drawPulse);

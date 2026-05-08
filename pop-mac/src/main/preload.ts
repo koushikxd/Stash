@@ -9,6 +9,12 @@ export interface PopApi {
   copyToClipboard: (text: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   onLinksUpdated: (cb: () => void) => void;
+
+  getPairing: () => Promise<{ secret: string; port: number; paired: boolean }>;
+  resetSecret: () => Promise<{ secret: string; port: number }>;
+  openSettings: () => Promise<void>;
+  getPairingQr: () => Promise<string>;
+  onPairedChanged: (cb: (paired: boolean) => void) => void;
 }
 
 const api: PopApi = {
@@ -19,6 +25,14 @@ const api: PopApi = {
   openExternal: (url) => ipcRenderer.invoke('pop:open', url),
   onLinksUpdated: (cb) => {
     ipcRenderer.on('links-updated', () => cb());
+  },
+
+  getPairing: () => ipcRenderer.invoke('pop:getPairing'),
+  resetSecret: () => ipcRenderer.invoke('pop:resetSecret'),
+  openSettings: () => ipcRenderer.invoke('pop:openSettings'),
+  getPairingQr: () => ipcRenderer.invoke('pop:getPairingQr'),
+  onPairedChanged: (cb) => {
+    ipcRenderer.on('paired-changed', (_evt, paired: boolean) => cb(paired));
   },
 };
 

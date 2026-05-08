@@ -1,19 +1,16 @@
 import * as os from 'os';
 import { createHash } from 'crypto';
 import { Bonjour, Service } from 'bonjour-service';
+import * as store from './store';
 
 let bonjour: Bonjour | null = null;
 let service: Service | null = null;
-let currentPort = 0;
-let currentSecret = '';
 
 function shortHash(secret: string): string {
   return createHash('sha256').update(secret).digest('hex').slice(0, 6);
 }
 
 export function start(port: number, secret: string): void {
-  currentPort = port;
-  currentSecret = secret;
   bonjour = new Bonjour();
   service = bonjour.publish({
     name: `pop-${shortHash(secret)}`,
@@ -22,7 +19,7 @@ export function start(port: number, secret: string): void {
     port,
     txt: { version: '1', name: os.hostname() },
   });
-  console.log(`[pop] mdns advertised _pop._tcp on :${port}`);
+  console.log(`[pop] mdns advertised _pop._tcp as pop-${shortHash(secret)} on :${port}`);
 }
 
 export function stop(): Promise<void> {
@@ -38,7 +35,6 @@ export function stop(): Promise<void> {
 }
 
 export async function restart(): Promise<void> {
-  if (!currentSecret) return;
   await stop();
-  start(currentPort, currentSecret);
+  start(store.getPort(), store.getSecret());
 }

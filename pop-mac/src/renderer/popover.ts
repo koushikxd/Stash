@@ -10,6 +10,7 @@ const list = document.getElementById('list') as HTMLUListElement;
 const empty = document.getElementById('empty') as HTMLDivElement;
 const count = document.getElementById('count') as HTMLSpanElement;
 const clearBtn = document.getElementById('clear') as HTMLButtonElement;
+const settingsBtn = document.getElementById('settings') as HTMLButtonElement;
 
 function relativeTime(ts: number): string {
   const diff = Math.max(0, Date.now() - ts);
@@ -74,6 +75,10 @@ async function render(): Promise<void> {
 
 clearBtn.addEventListener('click', async () => {
   await window.popApi.clearAll();
+});
+
+settingsBtn.addEventListener('click', () => {
+  void window.popApi.openSettings();
 });
 
 window.popApi.onLinksUpdated(() => {

@@ -54,6 +54,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 401);
       return;
     }
+    store.markPaired();
     send(res, 200, { ok: true, version: 1 });
     return;
   }
@@ -63,6 +64,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 401);
       return;
     }
+    store.markPaired();
     const raw = await readBody(req);
     let body: { url?: unknown; title?: unknown; sentAt?: unknown };
     try {
@@ -90,6 +92,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 401);
       return;
     }
+    store.markPaired();
     const raw = await readBody(req);
     let body: { links?: unknown };
     try {
