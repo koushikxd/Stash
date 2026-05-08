@@ -8,6 +8,12 @@ const MAX_BODY_BYTES = 64 * 1024;
 
 export const events = new EventEmitter();
 
+class HttpError extends Error {
+  constructor(readonly status: number, readonly body?: object) {
+    super(`HTTP ${status}`);
+  }
+}
+
 function enrichTitle(id: string, url: string): void {
   void fetchTitle(url).then((title) => {
     if (!title) return;
@@ -23,7 +29,7 @@ function readBody(req: http.IncomingMessage): Promise<string> {
     req.on('data', (chunk: Buffer) => {
       total += chunk.length;
       if (total > MAX_BODY_BYTES) {
-        reject(new Error('payload too large'));
+        reject(new HttpError(413, { error: 'payload_too_large' }));
         req.destroy();
         return;
       }
@@ -141,7 +147,10 @@ let server: http.Server | null = null;
 export function start(port: number): Promise<void> {
   return new Promise((resolve, reject) => {
     server = http.createServer((req, res) => {
-      handle(req, res).catch(() => send(res, 500));
+      handle(req, res).catch((err) => {
+        if (err instanceof HttpError) send(res, err.status, err.body);
+        else send(res, 500);
+      });
     });
     server.once('error', reject);
     server.listen(port, '0.0.0.0', () => {

@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow, Notification } from 'electron';
+import { createHash } from 'crypto';
 import { menubar, Menubar } from 'menubar';
 import * as QRCode from 'qrcode';
 import * as store from './store';
@@ -103,6 +104,10 @@ function showLinkNotification(): void {
   n.show();
 }
 
+function secretHash(secret: string): string {
+  return createHash('sha256').update(secret).digest('hex').slice(0, 6);
+}
+
 export function init(): void {
   const idleImg = nativeImage.createFromPath(ICON_IDLE);
   idleImg.setTemplateImage(true);
@@ -173,7 +178,8 @@ export function init(): void {
     openSettings();
   });
   ipcMain.handle('pop:getPairingQr', async () => {
-    const payload = JSON.stringify({ v: 1, secret: store.getSecret(), port: store.getPort() });
+    const secret = store.getSecret();
+    const payload = JSON.stringify({ v: 1, secret, port: store.getPort(), serviceName: `pop-${secretHash(secret)}` });
     return QRCode.toDataURL(payload, { errorCorrectionLevel: 'M', margin: 1, width: 280 });
   });
 
