@@ -28,6 +28,7 @@
     <string name="scan_perm_denied">Camera permission denied. Use manual entry instead.</string>
 
     <string name="toast_sent">Sent to Mac</string>
+    <string name="toast_queued">Saved - will sync when Mac is online</string>
     <string name="toast_not_paired">Pair pop first</string>
     <string name="toast_unauthorized">Bad secret — re-pair</string>
     <string name="toast_no_mac">Mac not found on Wi-Fi</string>

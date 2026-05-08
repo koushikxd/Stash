@@ -36,6 +36,7 @@ dependencies {
     implementation("com.google.android.material:material:1.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // CameraX for QR scanner preview + frame analysis
     implementation("androidx.camera:camera-core:1.3.4")

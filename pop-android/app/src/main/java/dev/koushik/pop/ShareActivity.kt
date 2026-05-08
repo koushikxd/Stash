@@ -56,6 +56,7 @@ class ShareActivity : Activity() {
 
     private fun toastFor(r: LinkSender.Result): Int = when (r) {
         is LinkSender.Result.Sent -> R.string.toast_sent
+        is LinkSender.Result.Queued -> R.string.toast_queued
         is LinkSender.Result.NotPaired -> R.string.toast_not_paired
         is LinkSender.Result.Unauthorized -> R.string.toast_unauthorized
         is LinkSender.Result.NoMacFound -> R.string.toast_no_mac
