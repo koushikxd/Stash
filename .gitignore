@@ -1,0 +1,15 @@
+.DS_Store
+*.log
+
+pop-android/.gradle/
+pop-android/**/build/
+pop-android/local.properties
+pop-android/.idea/
+pop-android/*.iml
+pop-android/**/*.iml
+pop-android/*.jks
+pop-android/*.keystore
+
+pop-mac/node_modules/
+pop-mac/dist/
+pop-mac/out/

@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "dev.koushik.pop"
     compileSdk = 34
+    val releaseStoreFile = System.getenv("POP_ANDROID_KEYSTORE")
 
     defaultConfig {
         applicationId = "dev.koushik.pop"
@@ -15,9 +16,21 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            if (!releaseStoreFile.isNullOrBlank()) {
+                storeFile = file(releaseStoreFile)
+                storePassword = System.getenv("POP_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("POP_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("POP_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (!releaseStoreFile.isNullOrBlank()) signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
