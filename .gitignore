@@ -1,15 +1,15 @@
 .DS_Store
 *.log
 
-pop-android/.gradle/
-pop-android/**/build/
-pop-android/local.properties
-pop-android/.idea/
-pop-android/*.iml
-pop-android/**/*.iml
-pop-android/*.jks
-pop-android/*.keystore
+stash-android/.gradle/
+stash-android/**/build/
+stash-android/local.properties
+stash-android/.idea/
+stash-android/*.iml
+stash-android/**/*.iml
+stash-android/*.jks
+stash-android/*.keystore
 
-pop-mac/node_modules/
-pop-mac/dist/
-pop-mac/out/
+stash-mac/node_modules/
+stash-mac/dist/
+stash-mac/out/
