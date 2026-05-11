@@ -154,7 +154,7 @@ export function start(port: number): Promise<void> {
     });
     server.once('error', reject);
     server.listen(port, '0.0.0.0', () => {
-      console.log(`[pop] http listening on 0.0.0.0:${port}`);
+      console.log(`[stash] http listening on 0.0.0.0:${port}`);
       resolve();
     });
   });

@@ -1,5 +1,5 @@
-appId: dev.koushik.pop
-productName: pop
+appId: dev.koushik.stash
+productName: stash
 directories:
   output: out
 files:
@@ -16,9 +16,9 @@ mac:
     - dmg
   extendInfo:
     LSUIElement: true
-    NSLocalNetworkUsageDescription: "pop discovers your Mac on the local Wi-Fi to receive links from your phone."
+    NSLocalNetworkUsageDescription: "stash discovers your Mac on the local Wi-Fi to receive links from your phone."
     NSBonjourServices:
-      - _pop._tcp
+      - _stash._tcp
 afterSign: build/notarize.js
 dmg:
   artifactName: ${productName}-${version}-${arch}.${ext}

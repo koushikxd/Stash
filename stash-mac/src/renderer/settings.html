@@ -2,31 +2,27 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>pop — Settings</title>
+    <title>stash — Settings</title>
     <link rel="stylesheet" href="settings.css" />
   </head>
   <body>
     <main>
       <h1>Pair your phone</h1>
-      <p class="hint">Open <strong>pop</strong> on Android, tap <em>Scan QR on Mac</em>, point the camera here.</p>
-
-      <div id="qr-wrap">
-        <img id="qr" alt="Pairing QR" />
-      </div>
+      <p class="hint">Open <strong>stash</strong> on Android and tap <em>Find and Pair Mac</em>. The phone will connect and save this Mac automatically.</p>
 
       <div id="status" class="status pending">Waiting for phone…</div>
 
       <details class="manual">
-        <summary>Can't scan? Enter manually</summary>
+        <summary>Manual fallback</summary>
+        <div class="kv"><span>Mac IP</span><code id="host">—</code></div>
         <div class="kv"><span>Port</span><code id="port">—</code></div>
         <div class="kv"><span>Secret</span><code id="secret">—</code></div>
       </details>
 
       <section class="prefs">
         <label><input id="launch" type="checkbox" /> Launch at login</label>
-        <label><input id="notifications" type="checkbox" /> Show notifications</label>
         <label class="port-row"><span>Port</span><input id="portInput" type="number" min="1" max="65535" /></label>
-        <div id="restart" class="restart">Restart pop for the new port to take effect.</div>
+        <div id="restart" class="restart">Restart stash for the new port to take effect.</div>
       </section>
 
       <button id="reset" class="reset" type="button">Reset secret</button>

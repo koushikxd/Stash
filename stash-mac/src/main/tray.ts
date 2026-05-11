@@ -1,8 +1,8 @@
 import * as path from 'path';
-import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow, Notification } from 'electron';
+import * as os from 'os';
+import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow } from 'electron';
 import { createHash } from 'crypto';
 import { menubar, Menubar } from 'menubar';
-import * as QRCode from 'qrcode';
 import * as store from './store';
 import { events as serverEvents } from './server';
 import * as mdns from './mdns';
@@ -75,13 +75,13 @@ function openSettings(): void {
     return;
   }
   settingsWin = new BrowserWindow({
-    width: 380,
-    height: 540,
+    width: 420,
+    height: 520,
     resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    title: 'pop — Settings',
+    title: 'stash — Settings',
     webPreferences: {
       preload: PRELOAD,
       contextIsolation: true,
@@ -95,25 +95,72 @@ function openSettings(): void {
   });
 }
 
-function showLinkNotification(): void {
-  if (!store.getSettings().notifications || !Notification.isSupported()) return;
-  const n = new Notification({ title: 'pop', body: 'New link from your phone' });
-  n.on('click', () => {
-    if (mb?.window) mb.showWindow();
-  });
-  n.show();
-}
-
 function secretHash(secret: string): string {
   return createHash('sha256').update(secret).digest('hex').slice(0, 6);
 }
 
+function localAddress(): string | null {
+  for (const items of Object.values(os.networkInterfaces())) {
+    for (const item of items ?? []) {
+      if (item.family === 'IPv4' && !item.internal) return item.address;
+    }
+  }
+  return null;
+}
+
+function registerIpc(): void {
+  ipcMain.handle('stash:getLinks', () => store.getLinks());
+  ipcMain.handle('stash:removeLink', (_evt, id: string) => {
+    store.removeLink(id);
+    refreshIcon();
+    notifyLinks();
+  });
+  ipcMain.handle('stash:clearAll', () => {
+    store.clearAll();
+    refreshIcon();
+    notifyLinks();
+  });
+  ipcMain.handle('stash:copy', (_evt, text: string) => {
+    clipboard.writeText(text);
+  });
+  ipcMain.handle('stash:open', (_evt, url: string) => {
+    void shell.openExternal(url);
+  });
+  ipcMain.handle('stash:getFavicon', (_evt, hostname: string) => getFavicon(hostname));
+
+  ipcMain.handle('stash:getPairing', () => ({
+    secret: store.getSecret(),
+    port: store.getPort(),
+    paired: store.isPaired(),
+    host: localAddress(),
+    serviceName: `stash-${secretHash(store.getSecret())}`,
+  }));
+  ipcMain.handle('stash:getSettings', () => store.getSettings());
+  ipcMain.handle('stash:updateSettings', (_evt, settings: Partial<store.Settings>) => {
+    const next = store.updateSettings(settings);
+    app.setLoginItemSettings({ openAtLogin: next.launchAtLogin, openAsHidden: true });
+    return next;
+  });
+  ipcMain.handle('stash:setPort', (_evt, port: number) => {
+    store.setPort(port);
+  });
+  ipcMain.handle('stash:resetSecret', () => {
+    const secret = store.resetSecret();
+    return { secret, port: store.getPort() };
+  });
+  ipcMain.handle('stash:openSettings', () => {
+    openSettings();
+  });
+}
+
 export function init(): void {
+  registerIpc();
+
   const idleImg = nativeImage.createFromPath(ICON_IDLE);
   idleImg.setTemplateImage(true);
 
   mb = menubar({
-    index: `file://${path.join(app.getAppPath(), 'dist', 'renderer', 'popover.html')}`,
+    index: `file://${path.join(app.getAppPath(), 'dist', 'renderer', 'stashover.html')}`,
     icon: idleImg,
     showDockIcon: false,
     preloadWindow: true,
@@ -137,56 +184,9 @@ export function init(): void {
     notifyLinks();
   });
 
-  ipcMain.handle('pop:getLinks', () => store.getLinks());
-  ipcMain.handle('pop:removeLink', (_evt, id: string) => {
-    store.removeLink(id);
-    refreshIcon();
-    notifyLinks();
-  });
-  ipcMain.handle('pop:clearAll', () => {
-    store.clearAll();
-    refreshIcon();
-    notifyLinks();
-  });
-  ipcMain.handle('pop:copy', (_evt, text: string) => {
-    clipboard.writeText(text);
-  });
-  ipcMain.handle('pop:open', (_evt, url: string) => {
-    void shell.openExternal(url);
-  });
-  ipcMain.handle('pop:getFavicon', (_evt, hostname: string) => getFavicon(hostname));
-
-  ipcMain.handle('pop:getPairing', () => ({
-    secret: store.getSecret(),
-    port: store.getPort(),
-    paired: store.isPaired(),
-  }));
-  ipcMain.handle('pop:getSettings', () => store.getSettings());
-  ipcMain.handle('pop:updateSettings', (_evt, settings: Partial<store.Settings>) => {
-    const next = store.updateSettings(settings);
-    app.setLoginItemSettings({ openAtLogin: next.launchAtLogin, openAsHidden: true });
-    return next;
-  });
-  ipcMain.handle('pop:setPort', (_evt, port: number) => {
-    store.setPort(port);
-  });
-  ipcMain.handle('pop:resetSecret', () => {
-    const secret = store.resetSecret();
-    return { secret, port: store.getPort() };
-  });
-  ipcMain.handle('pop:openSettings', () => {
-    openSettings();
-  });
-  ipcMain.handle('pop:getPairingQr', async () => {
-    const secret = store.getSecret();
-    const payload = JSON.stringify({ v: 1, secret, port: store.getPort(), serviceName: `pop-${secretHash(secret)}` });
-    return QRCode.toDataURL(payload, { errorCorrectionLevel: 'M', margin: 1, width: 280 });
-  });
-
   serverEvents.on('link-added', () => {
     refreshIcon();
     notifyLinks();
-    showLinkNotification();
   });
 
   serverEvents.on('link-updated', () => {

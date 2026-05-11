@@ -21,8 +21,8 @@ app.whenReady().then(async () => {
   const port = store.getPort();
 
   console.log('========================================');
-  console.log('[pop] secret =', secret);
-  console.log('[pop] port   =', port);
+  console.log('[stash] secret =', secret);
+  console.log('[stash] port   =', port);
   console.log('========================================');
 
   await server.start(port);
@@ -34,7 +34,7 @@ app.whenReady().then(async () => {
   }
 
   powerMonitor.on('resume', () => {
-    console.log('[pop] resume — restarting mdns');
+    console.log('[stash] resume — restarting mdns');
     void mdns.restart();
   });
 });

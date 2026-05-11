@@ -1,7 +1,7 @@
 {
-  "name": "pop-mac",
+  "name": "stash-mac",
   "version": "0.1.0",
-  "description": "pop — Mac menubar receiver for links shared from your phone.",
+  "description": "stash — Mac menubar receiver for links shared from your phone.",
   "main": "dist/main/main.js",
   "scripts": {
     "clean": "rimraf dist",
@@ -18,12 +18,10 @@
   "dependencies": {
     "@electron/notarize": "^2.5.0",
     "bonjour-service": "^1.2.1",
-    "menubar": "^9.5.1",
-    "qrcode": "^1.5.4"
+    "menubar": "^9.5.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.4",
-    "@types/qrcode": "^1.5.5",
     "electron": "^34.0.0",
     "electron-builder": "^25.0.5",
     "rimraf": "^6.0.1",

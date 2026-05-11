@@ -13,13 +13,13 @@ function shortHash(secret: string): string {
 export function start(port: number, secret: string): void {
   bonjour = new Bonjour();
   service = bonjour.publish({
-    name: `pop-${shortHash(secret)}`,
-    type: 'pop',
+    name: `stash-${shortHash(secret)}`,
+    type: 'stash',
     protocol: 'tcp',
     port,
-    txt: { version: '1', name: os.hostname() },
+    txt: { version: '1', name: os.hostname(), secret },
   });
-  console.log(`[pop] mdns advertised _pop._tcp as pop-${shortHash(secret)} on :${port}`);
+  console.log(`[stash] mdns advertised _stash._tcp as stash-${shortHash(secret)} on :${port}`);
 }
 
 export function stop(): Promise<void> {

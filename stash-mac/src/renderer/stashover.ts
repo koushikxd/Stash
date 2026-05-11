@@ -1,10 +1,15 @@
-import type { PopApi } from '../main/preload';
+type StashoverApi = {
+  getLinks: () => Promise<Array<{ id: string; url: string; title: string | null; hostname: string; receivedAt: number }>>;
+  removeLink: (id: string) => Promise<void>;
+  clearAll: () => Promise<void>;
+  copyToClipboard: (text: string) => Promise<void>;
+  openExternal: (url: string) => Promise<void>;
+  getFavicon: (hostname: string) => Promise<string | null>;
+  onLinksUpdated: (cb: () => void) => void;
+  openSettings: () => Promise<void>;
+};
 
-declare global {
-  interface Window {
-    popApi: PopApi;
-  }
-}
+const stashoverApi = (window as unknown as { stashApi: StashoverApi }).stashApi;
 
 const list = document.getElementById('list') as HTMLUListElement;
 const empty = document.getElementById('empty') as HTMLDivElement;
@@ -25,7 +30,13 @@ function relativeTime(ts: number): string {
 }
 
 async function render(): Promise<void> {
-  const links = await window.popApi.getLinks();
+  let links: Awaited<ReturnType<StashoverApi['getLinks']>>;
+  try {
+    links = await stashoverApi.getLinks();
+  } catch {
+    setTimeout(() => void render(), 300);
+    return;
+  }
   list.innerHTML = '';
   count.textContent = `${links.length} link${links.length === 1 ? '' : 's'}`;
   empty.classList.toggle('show', links.length === 0);
@@ -37,7 +48,7 @@ async function render(): Promise<void> {
     favicon.className = 'favicon';
     favicon.alt = '';
     if (link.hostname) {
-      void window.popApi.getFavicon(link.hostname).then((src) => {
+      void stashoverApi.getFavicon(link.hostname).then((src) => {
         if (src) favicon.src = src;
       });
     }
@@ -63,7 +74,7 @@ async function render(): Promise<void> {
     openBtn.textContent = '↗';
     openBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      void window.popApi.openExternal(link.url);
+      void stashoverApi.openExternal(link.url);
     });
 
     li.appendChild(favicon);
@@ -71,11 +82,11 @@ async function render(): Promise<void> {
     li.appendChild(openBtn);
 
     li.addEventListener('click', async () => {
-      await window.popApi.copyToClipboard(link.url);
+      await stashoverApi.copyToClipboard(link.url);
       li.classList.add('copied');
       title.textContent = 'Copied';
       setTimeout(() => {
-        void window.popApi.removeLink(link.id);
+        void stashoverApi.removeLink(link.id);
       }, 220);
     });
 
@@ -84,14 +95,14 @@ async function render(): Promise<void> {
 }
 
 clearBtn.addEventListener('click', async () => {
-  await window.popApi.clearAll();
+  await stashoverApi.clearAll();
 });
 
 settingsBtn.addEventListener('click', () => {
-  void window.popApi.openSettings();
+  void stashoverApi.openSettings();
 });
 
-window.popApi.onLinksUpdated(() => {
+stashoverApi.onLinksUpdated(() => {
   void render();
 });
 

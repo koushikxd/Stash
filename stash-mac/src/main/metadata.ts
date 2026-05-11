@@ -37,7 +37,7 @@ export async function fetchTitle(url: string, timeoutMs = 2000): Promise<string 
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: 'follow',
-      headers: { 'user-agent': 'pop/0.1 title fetcher' },
+      headers: { 'user-agent': 'stash/0.1 title fetcher' },
     });
     if (!res.ok) return null;
     const type = res.headers.get('content-type') ?? '';

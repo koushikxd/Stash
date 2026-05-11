@@ -13,7 +13,6 @@ export interface Link {
 }
 
 export interface Settings {
-  notifications: boolean;
   launchAtLogin: boolean;
   maxHistory: number;
 }
@@ -27,7 +26,6 @@ interface StoreShape {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  notifications: false,
   launchAtLogin: true,
   maxHistory: 1000,
 };
@@ -66,7 +64,7 @@ function write(): void {
 }
 
 export function init(): void {
-  storePath = path.join(app.getPath('userData'), 'pop-store.json');
+  storePath = path.join(app.getPath('userData'), 'stash-store.json');
   cache = read();
   write();
 }
