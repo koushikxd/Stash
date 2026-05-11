@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">stash</string>
+
+    <string name="pair_title">Pair with Mac</string>
+    <string name="pair_intro">Open stash on your Mac, then tap Find and Pair Mac. Manual entry is only a fallback.</string>
+    <string name="pair_already">Already paired ✓</string>
+    <string name="pair_unauthorized_banner">Mac rotated its secret. Re-scan the QR to continue.</string>
+    <string name="pair_manual_summary">Or paste manually</string>
+    <string name="pair_host_hint">Mac IP (e.g. 192.168.1.42)</string>
+    <string name="pair_port_hint">Port</string>
+    <string name="pair_secret_hint">Secret (UUID from Mac)</string>
+    <string name="pair_save">Save manual entry</string>
+    <string name="pair_discover">Find and Pair Mac</string>
+    <string name="pair_status_idle">Not paired</string>
+    <string name="pair_status_saved">Paired ✓</string>
+    <string name="pair_status_unreachable">Saved, but Mac unreachable</string>
+    <string name="pair_status_discovering">Searching for Mac…</string>
+    <string name="pair_status_not_found">Mac not found on Wi-Fi</string>
+    <string name="pair_status_verifying">Verifying with Mac…</string>
+    <string name="pair_status_secret_missing">Found Mac, but update/restart the Mac app so it broadcasts the secret.</string>
+
+    <string name="toast_sent">Sent to Mac</string>
+    <string name="toast_queued">Saved - will sync when Mac is online</string>
+    <string name="toast_not_paired">Pair stash first</string>
+    <string name="toast_unauthorized">Bad secret — re-pair</string>
+    <string name="toast_no_mac">Mac not found on Wi-Fi</string>
+    <string name="toast_offline">Mac offline — saved</string>
+    <string name="toast_not_a_link">Not a link</string>
+
+    <string name="repair_channel_name">Pairing alerts</string>
+    <string name="repair_title">Re-pair stash</string>
+    <string name="repair_body">Your Mac secret changed. Tap to scan the QR again.</string>
+</resources>
