@@ -1,5 +1,18 @@
 type StashoverApi = {
-  getLinks: () => Promise<Array<{ id: string; url: string; title: string | null; hostname: string; receivedAt: number }>>;
+  getLinks: () => Promise<
+    Array<{
+      id: string;
+      kind: 'link' | 'text';
+      text: string;
+      url: string | null;
+      title: string | null;
+      description: string | null;
+      image: string | null;
+      siteName: string | null;
+      hostname: string;
+      receivedAt: number;
+    }>
+  >;
   removeLink: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
   copyToClipboard: (text: string) => Promise<void>;
@@ -53,6 +66,10 @@ function checkIcon(): SVGSVGElement {
   return makeSvg([{ d: 'M20 6 9 17l-5-5' }], 16);
 }
 
+function textIcon(): SVGSVGElement {
+  return makeSvg([{ d: 'M4 7h16' }, { d: 'M4 12h12' }, { d: 'M4 17h9' }], 15);
+}
+
 function relativeTime(ts: number): string {
   const diff = Math.max(0, Date.now() - ts);
   const s = Math.floor(diff / 1000);
@@ -83,29 +100,46 @@ async function render(): Promise<void> {
     const faviconWrap = document.createElement('div');
     faviconWrap.className = 'favicon-wrap';
 
-    const favicon = document.createElement('img');
-    favicon.className = 'favicon';
-    favicon.alt = '';
-    if (link.hostname) {
-      void stashoverApi.getFavicon(link.hostname).then((src) => {
-        if (src) favicon.src = src;
-      });
+    if (link.image) {
+      const preview = document.createElement('img');
+      preview.className = 'preview-image';
+      preview.alt = '';
+      preview.src = link.image;
+      faviconWrap.appendChild(preview);
+    } else if (link.url) {
+      const favicon = document.createElement('img');
+      favicon.className = 'favicon';
+      favicon.alt = '';
+      if (link.hostname) {
+        void stashoverApi.getFavicon(link.hostname).then((src) => {
+          if (src) favicon.src = src;
+        });
+      }
+      faviconWrap.appendChild(favicon);
+    } else {
+      faviconWrap.classList.add('text-wrap');
+      faviconWrap.appendChild(textIcon());
     }
-    faviconWrap.appendChild(favicon);
 
     const body = document.createElement('div');
     body.className = 'body';
 
     const title = document.createElement('div');
     title.className = 'title';
-    title.textContent = link.title || link.hostname || link.url;
+    title.textContent = link.title || (link.url ? link.hostname || link.url : link.text);
+
+    const summary = document.createElement('div');
+    summary.className = 'summary';
+    summary.textContent = link.description || (link.url ? link.text : '');
 
     const meta = document.createElement('div');
     meta.className = 'meta';
-    const host = link.hostname ? `${link.hostname} · ` : '';
+    const source = link.siteName || link.hostname || (link.url ? '' : 'Text');
+    const host = source ? `${source} · ` : '';
     meta.textContent = `${host}${relativeTime(link.receivedAt)}`;
 
     body.appendChild(title);
+    if (summary.textContent) body.appendChild(summary);
     body.appendChild(meta);
 
     const openBtn = document.createElement('button');
@@ -113,9 +147,10 @@ async function render(): Promise<void> {
     openBtn.title = 'Open in browser';
     openBtn.setAttribute('aria-label', 'Open in browser');
     openBtn.appendChild(arrowUpRightIcon());
+    openBtn.hidden = !link.url;
     openBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      void stashoverApi.openExternal(link.url);
+      if (link.url) void stashoverApi.openExternal(link.url);
     });
 
     li.appendChild(faviconWrap);
@@ -123,7 +158,7 @@ async function render(): Promise<void> {
     li.appendChild(openBtn);
 
     li.addEventListener('click', async () => {
-      await stashoverApi.copyToClipboard(link.url);
+      await stashoverApi.copyToClipboard(link.url || link.text);
       li.classList.add('copied');
       faviconWrap.replaceChildren(checkIcon());
       setTimeout(() => {

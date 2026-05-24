@@ -2,7 +2,7 @@ import * as http from 'http';
 import { EventEmitter } from 'events';
 import { verifyBearer } from './auth';
 import * as store from './store';
-import { fetchTitle } from './metadata';
+import { fetchMetadata } from './metadata';
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -14,12 +14,17 @@ class HttpError extends Error {
   }
 }
 
-function enrichTitle(id: string, url: string): void {
-  void fetchTitle(url).then((title) => {
-    if (!title) return;
-    store.updateLinkTitle(id, title);
+function enrichMetadata(id: string, url: string): void {
+  void fetchMetadata(url).then((metadata) => {
+    if (!metadata) return;
+    store.updateLinkMetadata(id, metadata);
     events.emit('link-updated', id);
   });
+}
+
+function needsMetadata(link: store.Link): boolean {
+  if (!link.url) return false;
+  return !link.title || !link.description || !link.image || !link.siteName;
 }
 
 function readBody(req: http.IncomingMessage): Promise<string> {
@@ -60,6 +65,13 @@ function isValidUrl(u: unknown): u is string {
   }
 }
 
+function normalizedText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.trim().replace(/\s+/g, ' ');
+  if (!text || text.length > 4096) return null;
+  return text;
+}
+
 async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const method = req.method ?? 'GET';
   const url = req.url ?? '/';
@@ -81,25 +93,28 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     }
     store.markPaired();
     const raw = await readBody(req);
-    let body: { url?: unknown; title?: unknown; sentAt?: unknown };
+    let body: { url?: unknown; text?: unknown; title?: unknown; sentAt?: unknown };
     try {
       body = JSON.parse(raw);
     } catch {
       send(res, 400, { error: 'invalid_json' });
       return;
     }
-    if (!isValidUrl(body.url)) {
-      send(res, 400, { error: 'invalid_url' });
+    const url = isValidUrl(body.url) ? body.url : null;
+    const text = normalizedText(body.text) ?? url;
+    if (!text) {
+      send(res, 400, { error: 'invalid_payload' });
       return;
     }
-    const link = store.addLink({
-      url: body.url,
+    const result = store.addLink({
+      url,
+      text,
       title: typeof body.title === 'string' ? body.title : null,
       sentAt: typeof body.sentAt === 'number' ? body.sentAt : undefined,
     });
-    events.emit('link-added', link);
-    if (!link.title) enrichTitle(link.id, link.url);
-    send(res, 201, { id: link.id });
+    events.emit(result.created ? 'link-added' : 'link-updated', result.link);
+    if (result.link.url && needsMetadata(result.link)) enrichMetadata(result.link.id, result.link.url);
+    send(res, result.created ? 201 : 200, { id: result.link.id });
     return;
   }
 
@@ -124,15 +139,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
     let accepted = 0;
     for (const item of body.links) {
       if (!item || typeof item !== 'object') continue;
-      const obj = item as { url?: unknown; title?: unknown; sentAt?: unknown };
-      if (!isValidUrl(obj.url)) continue;
-      const link = store.addLink({
-        url: obj.url,
+      const obj = item as { url?: unknown; text?: unknown; title?: unknown; sentAt?: unknown };
+      const url = isValidUrl(obj.url) ? obj.url : null;
+      const text = normalizedText(obj.text) ?? url;
+      if (!text) continue;
+      const result = store.addLink({
+        url,
+        text,
         title: typeof obj.title === 'string' ? obj.title : null,
         sentAt: typeof obj.sentAt === 'number' ? obj.sentAt : undefined,
       });
-      events.emit('link-added', link);
-      if (!link.title) enrichTitle(link.id, link.url);
+      events.emit(result.created ? 'link-added' : 'link-updated', result.link);
+      if (result.link.url && needsMetadata(result.link)) enrichMetadata(result.link.id, result.link.url);
       accepted++;
     }
     send(res, 200, { accepted });

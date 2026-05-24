@@ -14,11 +14,11 @@ function attrValue(tag: string, attr: string): string | null {
   return re.exec(tag)?.[1] ?? null;
 }
 
-function metaTitle(html: string): string | null {
+function metaContent(html: string, keys: string[]): string | null {
   const metas = html.match(/<meta\s+[^>]*>/gi) ?? [];
   for (const tag of metas) {
     const property = attrValue(tag, 'property') ?? attrValue(tag, 'name');
-    if (property !== 'og:title' && property !== 'twitter:title') continue;
+    if (!property || !keys.includes(property.toLowerCase())) continue;
     const content = attrValue(tag, 'content');
     if (content) return decodeEntities(content);
   }
@@ -30,7 +30,28 @@ function documentTitle(html: string): string | null {
   return match?.[1] ? decodeEntities(match[1]) : null;
 }
 
-export async function fetchTitle(url: string, timeoutMs = 2000): Promise<string | null> {
+function trim(value: string | null, max: number): string | null {
+  if (!value) return null;
+  return value.length > max ? value.slice(0, max) : value;
+}
+
+function absoluteUrl(value: string | null, base: string): string | null {
+  if (!value) return null;
+  try {
+    return new URL(value, base).toString();
+  } catch {
+    return null;
+  }
+}
+
+export interface PageMetadata {
+  title: string | null;
+  description: string | null;
+  image: string | null;
+  siteName: string | null;
+}
+
+export async function fetchMetadata(url: string, timeoutMs = 2000): Promise<PageMetadata | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -43,9 +64,12 @@ export async function fetchTitle(url: string, timeoutMs = 2000): Promise<string 
     const type = res.headers.get('content-type') ?? '';
     if (type && !type.includes('text/html')) return null;
     const html = await res.text();
-    const title = metaTitle(html) ?? documentTitle(html);
-    if (!title || title.length > 300) return title?.slice(0, 300) ?? null;
-    return title;
+    return {
+      title: trim(metaContent(html, ['og:title', 'twitter:title']) ?? documentTitle(html), 300),
+      description: trim(metaContent(html, ['og:description', 'twitter:description', 'description']), 500),
+      image: absoluteUrl(metaContent(html, ['og:image', 'twitter:image']), url),
+      siteName: trim(metaContent(html, ['og:site_name']), 120),
+    };
   } catch {
     return null;
   } finally {

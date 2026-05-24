@@ -2,7 +2,18 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 export interface StashApi {
   getLinks: () => Promise<
-    Array<{ id: string; url: string; title: string | null; hostname: string; receivedAt: number }>
+    Array<{
+      id: string;
+      kind: 'link' | 'text';
+      text: string;
+      url: string | null;
+      title: string | null;
+      description: string | null;
+      image: string | null;
+      siteName: string | null;
+      hostname: string;
+      receivedAt: number;
+    }>
   >;
   removeLink: (id: string) => Promise<void>;
   clearAll: () => Promise<void>;
