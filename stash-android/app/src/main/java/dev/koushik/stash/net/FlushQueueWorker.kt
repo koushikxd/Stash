@@ -1,6 +1,7 @@
 package dev.koushik.stash.net
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -16,13 +17,18 @@ class FlushQueueWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        if (QueueManager.isEmpty(applicationContext)) return Result.success()
+        if (QueueManager.isEmpty(applicationContext)) {
+            Log.d(TAG, "flush skipped: empty queue")
+            return Result.success()
+        }
         val helper = NsdHelper(applicationContext)
+        Log.d(TAG, "flush start: worker")
         val result = try {
             LinkSender.flushQueue(applicationContext, helper)
         } finally {
             helper.shutdown()
         }
+        Log.d(TAG, "flush result: $result")
         return when (result) {
             is LinkSender.FlushResult.Empty,
             is LinkSender.FlushResult.Flushed,
@@ -34,13 +40,14 @@ class FlushQueueWorker(
     }
 
     companion object {
+        private const val TAG = "FlushQueueWorker"
         private const val UNIQUE_WORK_NAME = "stash-flush-queue"
 
         fun schedule(ctx: Context) {
             val request = OneTimeWorkRequestBuilder<FlushQueueWorker>()
                 .setConstraints(
                     Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .setRequiredNetworkType(NetworkType.UNMETERED)
                         .build()
                 )
                 .build()
