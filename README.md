@@ -7,7 +7,36 @@ Mac menubar receiver plus Android share target for sending links from phone to l
 - `stash-mac`: Electron menubar app. Receives authenticated HTTP posts, advertises via Bonjour, stores links locally.
 - `stash-android`: Kotlin Android app. Appears in the Android share sheet, discovers the Mac via NSD, sends immediately or queues offline.
 
-## Mac Development
+## Install on Mac
+
+```sh
+cd stash-mac
+npm install
+npm run dist
+open out/stash-0.1.0-arm64.dmg
+```
+
+In the DMG window, drag `stash` to Applications. Launch `stash`; it runs in the menu bar. Open Settings and use the QR/secret to pair Android.
+
+## Install on Android Phone
+
+1. Open `stash-android` in Android Studio.
+2. Connect your Android phone with USB debugging enabled.
+3. Select your phone in the device picker.
+4. Click Run.
+5. Android Studio installs `stash` on the phone.
+6. Open `stash`, pair it with the Mac, then share links or text to `stash`.
+
+Optional command-line debug APK:
+
+```sh
+cd stash-android
+./gradlew assembleDebug
+```
+
+## Development Run
+
+Run the Mac app without building the `.dmg`:
 
 ```sh
 cd stash-mac
@@ -15,26 +44,14 @@ npm install
 npm run dev
 ```
 
-The app hides from the Dock and opens from the menu bar. On first launch it opens Settings with a pairing QR.
-
-## Android Development
-
-Open `stash-android` in Android Studio, or build from the command line:
-
-```sh
-cd stash-android
-./gradlew assembleDebug
-```
-
-Install the debug APK, open `stash`, scan the Mac QR, then share any HTTP/HTTPS link to `stash` from Android.
-
 ## Release Builds
 
-Mac DMG:
+Mac `.dmg`:
 
 ```sh
 cd stash-mac
 npm run dist
+open out/stash-0.1.0-arm64.dmg
 ```
 
 Notarization uses these environment variables when present:
@@ -43,7 +60,7 @@ Notarization uses these environment variables when present:
 - `NOTARIZE_APPLE_ID_PASSWORD`
 - `NOTARIZE_TEAM_ID`
 
-Android release APK:
+Android release `.apk`:
 
 ```sh
 cd stash-android
