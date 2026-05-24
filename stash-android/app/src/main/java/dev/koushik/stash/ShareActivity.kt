@@ -24,19 +24,19 @@ class ShareActivity : Activity() {
             return
         }
 
-        val raw = intent?.getStringExtra(Intent.EXTRA_TEXT)?.trim()
-        val url = raw?.let { extractFirstUrl(it) }
-        if (url == null) {
-            toast(R.string.toast_not_a_link)
+        val text = intent?.getStringExtra(Intent.EXTRA_TEXT)?.trim()
+        if (text.isNullOrBlank()) {
+            toast(R.string.toast_not_text)
             finish()
             return
         }
+        val url = extractFirstUrl(text)
 
         val appCtx = applicationContext
         Thread({
             val helper = NsdHelper(appCtx)
             val result = try {
-                LinkSender.send(appCtx, url, helper)
+                LinkSender.send(appCtx, text, url, helper)
             } finally {
                 helper.shutdown()
             }

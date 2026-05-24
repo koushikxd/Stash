@@ -6,7 +6,7 @@ import org.json.JSONObject
 
 object QueueManager {
 
-    data class QueuedLink(val url: String, val sentAt: Long)
+    data class QueuedItem(val text: String, val url: String?, val sentAt: Long)
 
     private const val PREFS_FILE = "stash-queue.prefs"
     private const val KEY_LINKS = "links"
@@ -15,16 +15,16 @@ object QueueManager {
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS_FILE, Context.MODE_PRIVATE)
 
-    fun enqueue(ctx: Context, url: String, sentAt: Long = System.currentTimeMillis()) {
+    fun enqueue(ctx: Context, text: String, url: String?, sentAt: Long = System.currentTimeMillis()) {
         synchronized(this) {
             val links = readAllLocked(ctx).toMutableList()
-            links.add(QueuedLink(url, sentAt))
+            links.add(QueuedItem(text, url, sentAt))
             val bounded = if (links.size > MAX_QUEUE_SIZE) links.takeLast(MAX_QUEUE_SIZE) else links
             writeLocked(ctx, bounded)
         }
     }
 
-    fun readAll(ctx: Context): List<QueuedLink> = synchronized(this) { readAllLocked(ctx) }
+    fun readAll(ctx: Context): List<QueuedItem> = synchronized(this) { readAllLocked(ctx) }
 
     fun clear(ctx: Context) {
         synchronized(this) {
@@ -46,24 +46,26 @@ object QueueManager {
 
     fun isEmpty(ctx: Context): Boolean = readAll(ctx).isEmpty()
 
-    private fun readAllLocked(ctx: Context): List<QueuedLink> {
+    private fun readAllLocked(ctx: Context): List<QueuedItem> {
         val raw = prefs(ctx).getString(KEY_LINKS, null) ?: return emptyList()
         val array = try { JSONArray(raw) } catch (_: Throwable) { return emptyList() }
-        val links = ArrayList<QueuedLink>(array.length())
+        val links = ArrayList<QueuedItem>(array.length())
         for (i in 0 until array.length()) {
             val obj = array.optJSONObject(i) ?: continue
-            val url = obj.optString("url").takeIf { it.isNotBlank() } ?: continue
+            val url = obj.optString("url").takeIf { it.isNotBlank() }
+            val text = obj.optString("text").takeIf { it.isNotBlank() } ?: url ?: continue
             val sentAt = obj.optLong("sentAt", System.currentTimeMillis())
-            links.add(QueuedLink(url, sentAt))
+            links.add(QueuedItem(text, url, sentAt))
         }
         return links
     }
 
-    private fun writeLocked(ctx: Context, links: List<QueuedLink>) {
+    private fun writeLocked(ctx: Context, links: List<QueuedItem>) {
         val array = JSONArray()
         links.forEach { link ->
             array.put(JSONObject().apply {
-                put("url", link.url)
+                put("text", link.text)
+                link.url?.let { put("url", it) }
                 put("sentAt", link.sentAt)
             })
         }

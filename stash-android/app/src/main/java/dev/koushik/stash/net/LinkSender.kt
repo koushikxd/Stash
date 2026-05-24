@@ -47,22 +47,34 @@ object LinkSender {
         .writeTimeout(500, TimeUnit.MILLISECONDS)
         .build()
 
-    fun send(ctx: Context, url: String, nsdHelper: NsdHelper): Result {
+    fun send(ctx: Context, text: String, url: String?, nsdHelper: NsdHelper): Result {
+        if (!QueueManager.isEmpty(ctx)) {
+            QueueManager.enqueue(ctx, text, url)
+            return when (val result = flushQueue(ctx, nsdHelper)) {
+                is FlushResult.Flushed -> Result.Sent
+                is FlushResult.Empty -> Result.Sent
+                is FlushResult.NotPaired -> Result.NotPaired
+                is FlushResult.Unauthorized -> Result.Unauthorized
+                is FlushResult.NoMacFound -> scheduleQueued(ctx)
+                is FlushResult.Failed -> scheduleQueued(ctx)
+            }
+        }
+
         val secret = Secret.getSecret(ctx) ?: return Result.NotPaired
         val cachedHost = Secret.getHost(ctx)
         val cachedPort = Secret.getPort(ctx)
 
         if (!cachedHost.isNullOrBlank() && pingOk(cachedHost, cachedPort, secret)) {
-            val result = postLink(cachedHost, cachedPort, secret, url)
-            return if (result.shouldQueue()) queue(ctx, url) else result
+            val result = postItem(cachedHost, cachedPort, secret, text, url)
+            return if (result.shouldQueue()) queue(ctx, text, url) else result
         }
 
-        val resolved = nsdHelper.findMac(3000) ?: return queue(ctx, url)
+        val resolved = nsdHelper.findMac(3000) ?: return queue(ctx, text, url)
         val host = resolved.host
         val port = resolved.port
         Secret.saveHostPort(ctx, host, port)
-        val result = postLink(host, port, secret, url)
-        return if (result.shouldQueue()) queue(ctx, url) else result
+        val result = postItem(host, port, secret, text, url)
+        return if (result.shouldQueue()) queue(ctx, text, url) else result
     }
 
     fun flushQueue(ctx: Context, nsdHelper: NsdHelper): FlushResult {
@@ -84,8 +96,12 @@ object LinkSender {
         return postBatch(ctx, host, port, secret, queued)
     }
 
-    private fun queue(ctx: Context, url: String): Result {
-        QueueManager.enqueue(ctx, url)
+    private fun queue(ctx: Context, text: String, url: String?): Result {
+        QueueManager.enqueue(ctx, text, url)
+        return scheduleQueued(ctx)
+    }
+
+    private fun scheduleQueued(ctx: Context): Result {
         FlushQueueWorker.schedule(ctx)
         return Result.Queued
     }
@@ -106,9 +122,10 @@ object LinkSender {
         }
     }
 
-    private fun postLink(host: String, port: Int, secret: String, url: String): Result {
+    private fun postItem(host: String, port: Int, secret: String, text: String, url: String?): Result {
         val payload = JSONObject().apply {
-            put("url", url)
+            put("text", text)
+            url?.let { put("url", it) }
             put("sentAt", System.currentTimeMillis())
         }.toString()
         val req = Request.Builder()
@@ -119,7 +136,7 @@ object LinkSender {
         return try {
             standardClient.newCall(req).execute().use { resp ->
                 when (resp.code) {
-                    201 -> Result.Sent
+                    200, 201 -> Result.Sent
                     401 -> Result.Unauthorized
                     else -> Result.NetworkError("HTTP ${resp.code}")
                 }
@@ -135,13 +152,14 @@ object LinkSender {
         host: String,
         port: Int,
         secret: String,
-        links: List<QueueManager.QueuedLink>
+        links: List<QueueManager.QueuedItem>
     ): FlushResult {
         val payload = JSONObject().apply {
             put("links", org.json.JSONArray().apply {
                 links.forEach { link ->
                     put(JSONObject().apply {
-                        put("url", link.url)
+                        put("text", link.text)
+                        link.url?.let { put("url", it) }
                         put("sentAt", link.sentAt)
                     })
                 }

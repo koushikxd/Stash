@@ -26,7 +26,7 @@
     <string name="toast_unauthorized">Bad secret — re-pair</string>
     <string name="toast_no_mac">Mac not found on Wi-Fi</string>
     <string name="toast_offline">Mac offline — saved</string>
-    <string name="toast_not_a_link">Not a link</string>
+    <string name="toast_not_text">Nothing to stash</string>
 
     <string name="repair_channel_name">Pairing alerts</string>
     <string name="repair_title">Re-pair stash</string>
