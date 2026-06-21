@@ -3,9 +3,9 @@ package dev.koushik.stash.net
 import java.util.Locale
 
 /**
- * Describes how to reach the paired Mac on the local network. Endpoints are built
- * either from a discovered NSD service or from values the user typed during manual
- * pairing, and they know how to render the URLs the [LinkSender] talks to.
+ * Describes how to reach the Mac on the local network. Endpoints are built either
+ * from a discovered NSD service or from a manually entered host, and they know how
+ * to render the URLs the [LinkSender] talks to.
  */
 data class Endpoint(
     val host: String,

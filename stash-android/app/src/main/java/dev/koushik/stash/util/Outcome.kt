@@ -64,9 +64,9 @@ sealed class Outcome<out T> {
 enum class Failure(val userMessage: String) {
     Offline("No network connection"),
     Timeout("The request timed out"),
-    Unauthorized("Pairing secret was rejected"),
-    NotPaired("This device is not paired yet"),
-    HostUnreachable("Could not reach the paired Mac"),
+    Unauthorized("Shared secret was rejected"),
+    NotPaired("This device is not configured yet"),
+    HostUnreachable("Could not reach the Mac"),
     BadResponse("The Mac returned an unexpected response"),
     Unknown("Something went wrong");
 

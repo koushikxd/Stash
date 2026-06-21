@@ -2,22 +2,34 @@ package dev.koushik.stash.net
 
 import android.content.Context
 import android.util.Log
-import dev.koushik.stash.data.QueueManager
+import dev.koushik.stash.data.LinkRecord
+import dev.koushik.stash.data.RecordStore
 import dev.koushik.stash.data.Secret
+import dev.koushik.stash.util.PayloadValidator
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
+/**
+ * Delivers shared links to the Mac over the LAN. Every send is *write-ahead*: the
+ * link is persisted as a PENDING [LinkRecord] before any network call, so nothing
+ * is lost if the process dies mid-send. Delivery itself is always a batch flush of
+ * the whole pending set, which keeps ordering simple and lets a single share also
+ * drain anything that queued while we were away.
+ *
+ * Endpoint resolution tries, in order: the cached IP (fast ping), fresh mDNS
+ * discovery, then the per-subnet pin (for routers that block multicast).
+ */
 object LinkSender {
 
     sealed class Result {
         object Sent : Result()
         object Queued : Result()
-        object NotPaired : Result()
         object Unauthorized : Result()
         object NoMacFound : Result()
         data class NetworkError(val message: String) : Result()
@@ -26,7 +38,6 @@ object LinkSender {
     sealed class FlushResult {
         object Empty : FlushResult()
         data class Flushed(val count: Int) : FlushResult()
-        object NotPaired : FlushResult()
         object Unauthorized : FlushResult()
         object NoMacFound : FlushResult()
         data class Failed(val message: String) : FlushResult()
@@ -47,58 +58,29 @@ object LinkSender {
         .writeTimeout(500, TimeUnit.MILLISECONDS)
         .build()
 
+    /** Persist the link (PENDING) then attempt to flush everything pending. */
     fun send(ctx: Context, text: String, url: String?, nsdHelper: NsdHelper): Result {
-        if (!QueueManager.isEmpty(ctx)) {
-            QueueManager.enqueue(ctx, text, url)
-            return when (val result = flushQueue(ctx, nsdHelper)) {
-                is FlushResult.Flushed -> Result.Sent
-                is FlushResult.Empty -> Result.Sent
-                is FlushResult.NotPaired -> Result.NotPaired
-                is FlushResult.Unauthorized -> Result.Unauthorized
-                is FlushResult.NoMacFound -> scheduleQueued(ctx)
-                is FlushResult.Failed -> scheduleQueued(ctx)
-            }
+        RecordStore.enqueue(ctx, text, url)
+        return when (flushQueue(ctx, nsdHelper)) {
+            is FlushResult.Flushed ->
+                if (RecordStore.isPendingEmpty(ctx)) Result.Sent else scheduleQueued(ctx)
+            is FlushResult.Empty -> Result.Sent
+            is FlushResult.Unauthorized -> Result.Unauthorized
+            is FlushResult.NoMacFound -> scheduleQueued(ctx)
+            is FlushResult.Failed -> scheduleQueued(ctx)
         }
-
-        val secret = Secret.getSecret(ctx) ?: return Result.NotPaired
-        val cachedHost = Secret.getHost(ctx)
-        val cachedPort = Secret.getPort(ctx)
-
-        if (!cachedHost.isNullOrBlank() && pingOk(cachedHost, cachedPort, secret)) {
-            val result = postItem(cachedHost, cachedPort, secret, text, url)
-            return if (result.shouldQueue()) queue(ctx, text, url) else result
-        }
-
-        val resolved = nsdHelper.findMac(3000) ?: return queue(ctx, text, url)
-        val host = resolved.host
-        val port = resolved.port
-        Secret.saveHostPort(ctx, host, port)
-        val result = postItem(host, port, secret, text, url)
-        return if (result.shouldQueue()) queue(ctx, text, url) else result
     }
 
+    /** Post every PENDING record as a batch and mark the accepted ones SENT. */
     fun flushQueue(ctx: Context, nsdHelper: NsdHelper): FlushResult {
-        val queued = QueueManager.readAll(ctx)
-        if (queued.isEmpty()) return FlushResult.Empty
+        retireUndeliverable(ctx)
+        val pending = RecordStore.pending(ctx)
+        if (pending.isEmpty()) return FlushResult.Empty
 
-        val secret = Secret.getSecret(ctx) ?: return FlushResult.NotPaired
-        val cachedHost = Secret.getHost(ctx)
-        val cachedPort = Secret.getPort(ctx)
-
-        if (!cachedHost.isNullOrBlank() && pingOk(cachedHost, cachedPort, secret)) {
-            return postBatch(ctx, cachedHost, cachedPort, secret, queued)
-        }
-
-        val resolved = nsdHelper.findMac(4000) ?: return FlushResult.NoMacFound
-        val host = resolved.host
-        val port = resolved.port
-        Secret.saveHostPort(ctx, host, port)
-        return postBatch(ctx, host, port, secret, queued)
-    }
-
-    private fun queue(ctx: Context, text: String, url: String?): Result {
-        QueueManager.enqueue(ctx, text, url)
-        return scheduleQueued(ctx)
+        val secret = Secret.secret()
+        val endpoint = resolveEndpoint(ctx, nsdHelper, secret)
+            ?: return FlushResult.NoMacFound // "away" — leave PENDING, do not burn an attempt
+        return postBatch(ctx, endpoint.first, endpoint.second, secret, pending)
     }
 
     private fun scheduleQueued(ctx: Context): Result {
@@ -106,7 +88,32 @@ object LinkSender {
         return Result.Queued
     }
 
-    private fun Result.shouldQueue(): Boolean = this is Result.NoMacFound || this is Result.NetworkError
+    /**
+     * Find a live Mac: cached IP → fresh discovery → per-subnet pin. Persists the
+     * winning address so the next send takes the fast path.
+     */
+    private fun resolveEndpoint(ctx: Context, nsdHelper: NsdHelper, secret: String): Pair<String, Int>? {
+        val cachedHost = Secret.getHost(ctx)
+        val cachedPort = Secret.getPort(ctx)
+        if (!cachedHost.isNullOrBlank() && pingOk(cachedHost, cachedPort, secret)) {
+            return cachedHost to cachedPort
+        }
+
+        val resolved = nsdHelper.findMac(4000)
+        if (resolved != null) {
+            Secret.saveHostPort(ctx, resolved.host, resolved.port)
+            Secret.saveHostname(ctx, resolved.hostname)
+            return resolved.host to resolved.port
+        }
+
+        // Multicast-blocked router: fall back to the IP that worked here before.
+        val pinned = NetworkPinStore.get(ctx)
+        if (pinned != null && pingOk(pinned.first, pinned.second, secret)) {
+            Secret.saveHostPort(ctx, pinned.first, pinned.second)
+            return pinned
+        }
+        return null
+    }
 
     private fun pingOk(host: String, port: Int, secret: String): Boolean {
         val req = Request.Builder()
@@ -122,45 +129,20 @@ object LinkSender {
         }
     }
 
-    private fun postItem(host: String, port: Int, secret: String, text: String, url: String?): Result {
-        val payload = JSONObject().apply {
-            put("text", text)
-            url?.let { put("url", it) }
-            put("sentAt", System.currentTimeMillis())
-        }.toString()
-        val req = Request.Builder()
-            .url("http://$host:$port/links")
-            .header("Authorization", "Bearer $secret")
-            .post(payload.toRequestBody(JSON))
-            .build()
-        return try {
-            standardClient.newCall(req).execute().use { resp ->
-                when (resp.code) {
-                    200, 201 -> Result.Sent
-                    401 -> Result.Unauthorized
-                    else -> Result.NetworkError("HTTP ${resp.code}")
-                }
-            }
-        } catch (e: IOException) {
-            Log.w(TAG, "POST /links failed", e)
-            Result.NetworkError(e.message ?: "io")
-        }
-    }
-
     private fun postBatch(
         ctx: Context,
         host: String,
         port: Int,
         secret: String,
-        links: List<QueueManager.QueuedItem>
+        pending: List<LinkRecord>,
     ): FlushResult {
         val payload = JSONObject().apply {
-            put("links", org.json.JSONArray().apply {
-                links.forEach { link ->
+            put("links", JSONArray().apply {
+                pending.forEach { record ->
                     put(JSONObject().apply {
-                        put("text", link.text)
-                        link.url?.let { put("url", it) }
-                        put("sentAt", link.sentAt)
+                        put("text", record.text)
+                        record.url?.let { put("url", it) }
+                        put("sentAt", record.createdAt)
                     })
                 }
             })
@@ -177,17 +159,46 @@ object LinkSender {
                         val accepted = resp.body?.string()?.let { body ->
                             try { JSONObject(body).optInt("accepted", -1) } catch (_: Throwable) { -1 }
                         } ?: -1
-                        if (accepted < 0) return FlushResult.Failed("missing accepted")
-                        QueueManager.removeFirst(ctx, accepted)
-                        if (accepted == links.size) FlushResult.Flushed(accepted) else FlushResult.Failed("accepted $accepted of ${links.size}")
+                        if (accepted < 0) {
+                            RecordStore.recordAttemptOnPending(ctx, "missing accepted")
+                            return FlushResult.Failed("missing accepted")
+                        }
+                        // Batch returns a count only; mark the first N (createdAt order
+                        // == send order) SENT.
+                        RecordStore.markFirstPendingSent(ctx, accepted)
+                        // This IP works on this network — pin it for multicast-blocked routers.
+                        NetworkPinStore.put(ctx, host, port)
+                        if (accepted >= pending.size) {
+                            FlushResult.Flushed(accepted)
+                        } else {
+                            RecordStore.recordAttemptOnPending(ctx, "partial accept")
+                            FlushResult.Failed("accepted $accepted of ${pending.size}")
+                        }
                     }
-                    401 -> FlushResult.Unauthorized
-                    else -> FlushResult.Failed("HTTP ${resp.code}")
+                    401 -> {
+                        RecordStore.recordAttemptOnPending(ctx, "Unauthorized")
+                        FlushResult.Unauthorized
+                    }
+                    else -> {
+                        RecordStore.recordAttemptOnPending(ctx, "HTTP ${resp.code}")
+                        FlushResult.Failed("HTTP ${resp.code}")
+                    }
                 }
             }
         } catch (e: IOException) {
             Log.w(TAG, "POST /links/batch failed", e)
+            RecordStore.recordAttemptOnPending(ctx, e.message ?: "io")
             FlushResult.Failed(e.message ?: "io")
+        }
+    }
+
+    private fun retireUndeliverable(ctx: Context) {
+        val ids = RecordStore.pending(ctx)
+            .filter { it.text.toByteArray(Charsets.UTF_8).size > PayloadValidator.MAX_PAYLOAD_BYTES }
+            .map { it.id }
+            .toSet()
+        if (ids.isNotEmpty()) {
+            RecordStore.fail(ctx, ids, "Payload too large")
         }
     }
 

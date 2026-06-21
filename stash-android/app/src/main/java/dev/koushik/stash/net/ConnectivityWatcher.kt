@@ -6,7 +6,7 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.net.Network
 import android.util.Log
-import dev.koushik.stash.data.QueueManager
+import dev.koushik.stash.data.RecordStore
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -43,7 +43,8 @@ class ConnectivityWatcher(private val ctx: Context) {
     }
 
     private fun flushAsync(reason: String) {
-        if (QueueManager.isEmpty(appCtx)) return
+        RecordStore.expireOlderThan(appCtx, FlushQueueWorker.RETENTION_MS)
+        if (RecordStore.isPendingEmpty(appCtx)) return
         if (!flushing.compareAndSet(false, true)) {
             Log.d(TAG, "flush already running: $reason")
             return

@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class NsdHelper(context: Context) {
 
-    data class Mac(val host: String, val port: Int, val secret: String?)
+    data class Mac(val host: String, val port: Int, val hostname: String?)
 
     private val appCtx = context.applicationContext
     private val nsd = appCtx.getSystemService(Context.NSD_SERVICE) as NsdManager
@@ -58,11 +58,13 @@ class NsdHelper(context: Context) {
                         val txt = info.attributes
                         val versionOk = txt == null || !txt.containsKey("version") ||
                             txt["version"]?.let { String(it, StandardCharsets.UTF_8) } == "1"
-                        val secret = txt?.get("secret")?.let { String(it, StandardCharsets.UTF_8) }?.takeIf { it.isNotBlank() }
+                        // The broadcast .local hostname is an identity hint only — it is
+                        // not directly resolvable on Android, so we never dial it.
+                        val hostname = txt?.get("name")?.let { String(it, StandardCharsets.UTF_8) }?.takeIf { it.isNotBlank() }
                         resolving.set(false)
                         if (versionOk && host != null && port > 0) {
                             if (done.compareAndSet(false, true)) {
-                                resultQueue.offer(Mac(host, port, secret))
+                                resultQueue.offer(Mac(host, port, hostname))
                                 return
                             }
                         }
