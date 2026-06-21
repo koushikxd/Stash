@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { getSharedSecret } from './sharedSecret';
 
 export interface Link {
   id: string;
@@ -30,9 +31,7 @@ export interface Settings {
 }
 
 interface StoreShape {
-  secret: string;
   port: number;
-  paired: boolean;
   links: Link[];
   settings: Settings;
 }
@@ -54,17 +53,13 @@ function read(): StoreShape {
     const raw = fs.readFileSync(storePath, 'utf8');
     const parsed = JSON.parse(raw) as Partial<StoreShape>;
     return {
-      secret: parsed.secret ?? randomUUID(),
       port: parsed.port ?? DEFAULT_PORT,
-      paired: parsed.paired === true,
       links: Array.isArray(parsed.links) ? parsed.links.map(normalizeLink) : [],
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
     };
   } catch {
     return {
-      secret: randomUUID(),
       port: DEFAULT_PORT,
-      paired: false,
       links: [],
       settings: { ...DEFAULT_SETTINGS },
     };
@@ -100,31 +95,11 @@ export function init(): void {
 }
 
 export function getSecret(): string {
-  return cache.secret;
+  return getSharedSecret();
 }
 
 export function getPort(): number {
   return cache.port;
-}
-
-export function isPaired(): boolean {
-  return cache.paired;
-}
-
-export function markPaired(): void {
-  if (cache.paired) return;
-  cache.paired = true;
-  write();
-  events.emit('paired-changed', true);
-}
-
-export function resetSecret(): string {
-  cache.secret = randomUUID();
-  cache.paired = false;
-  write();
-  events.emit('secret-reset', cache.secret);
-  events.emit('paired-changed', false);
-  return cache.secret;
 }
 
 export function getSettings(): Settings {

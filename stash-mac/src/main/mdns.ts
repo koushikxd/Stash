@@ -12,12 +12,15 @@ function shortHash(secret: string): string {
 
 export function start(port: number, secret: string): void {
   bonjour = new Bonjour();
+  // Note: the secret is NOT broadcast. mDNS only advertises where the Mac is
+  // (host/port via the service) and who it is (the .local hostname). The phone
+  // already knows the shared secret it was built with.
   service = bonjour.publish({
     name: `stash-${shortHash(secret)}`,
     type: 'stash',
     protocol: 'tcp',
     port,
-    txt: { version: '1', name: os.hostname(), secret },
+    txt: { version: '1', name: os.hostname() },
   });
   console.log(`[stash] mdns advertised _stash._tcp as stash-${shortHash(secret)} on :${port}`);
 }

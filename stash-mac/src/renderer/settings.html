@@ -7,16 +7,15 @@
   </head>
   <body>
     <main>
-      <h1>Pair your phone</h1>
-      <p class="hint">Open <strong>stash</strong> on Android and tap <em>Find and Pair Mac</em>. The phone will connect and save this Mac automatically.</p>
+      <h1>stash</h1>
+      <p class="hint">Links shared from your phone arrive here automatically when it's on the same Wi-Fi. No pairing needed — both apps already share your private key.</p>
 
-      <div id="status" class="status pending">Waiting for phone…</div>
+      <div id="status" class="status pending">Waiting for a network connection…</div>
 
       <details class="manual">
-        <summary>Manual fallback</summary>
+        <summary>This Mac on the network</summary>
         <div class="kv"><span>Mac IP</span><code id="host">—</code></div>
         <div class="kv"><span>Port</span><code id="port">—</code></div>
-        <div class="kv"><span>Secret</span><code id="secret">—</code></div>
       </details>
 
       <section class="prefs">
@@ -24,9 +23,6 @@
         <label class="port-row"><span>Port</span><input id="portInput" type="number" min="1" max="65535" /></label>
         <div id="restart" class="restart">Restart stash for the new port to take effect.</div>
       </section>
-
-      <button id="reset" class="reset" type="button">Reset secret</button>
-      <p class="footnote">Resetting unpairs your phone — you'll need to re-scan.</p>
     </main>
     <script src="settings.js"></script>
   </body>

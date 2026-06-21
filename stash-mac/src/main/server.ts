@@ -5,6 +5,7 @@ import * as store from './store';
 import { fetchMetadata } from './metadata';
 
 const MAX_BODY_BYTES = 64 * 1024;
+const MAX_TEXT_BYTES = 4 * 1024;
 
 export const events = new EventEmitter();
 
@@ -68,8 +69,29 @@ function isValidUrl(u: unknown): u is string {
 function normalizedText(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const text = value.trim().replace(/\s+/g, ' ');
-  if (!text || text.length > 4096) return null;
+  if (!text || Buffer.byteLength(text, 'utf8') > MAX_TEXT_BYTES) return null;
   return text;
+}
+
+type LinkInput = {
+  url: string | null;
+  text: string;
+  title: string | null;
+  sentAt?: number;
+};
+
+function parseLinkInput(value: unknown): LinkInput | null {
+  if (!value || typeof value !== 'object') return null;
+  const obj = value as { url?: unknown; text?: unknown; title?: unknown; sentAt?: unknown };
+  const url = isValidUrl(obj.url) ? obj.url : null;
+  const text = normalizedText(obj.text) ?? url;
+  if (!text) return null;
+  return {
+    url,
+    text,
+    title: typeof obj.title === 'string' ? obj.title : null,
+    sentAt: typeof obj.sentAt === 'number' ? obj.sentAt : undefined,
+  };
 }
 
 async function handle(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -81,7 +103,6 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 401);
       return;
     }
-    store.markPaired();
     send(res, 200, { ok: true, version: 1 });
     return;
   }
@@ -91,27 +112,20 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 401);
       return;
     }
-    store.markPaired();
     const raw = await readBody(req);
-    let body: { url?: unknown; text?: unknown; title?: unknown; sentAt?: unknown };
+    let body: unknown;
     try {
       body = JSON.parse(raw);
     } catch {
       send(res, 400, { error: 'invalid_json' });
       return;
     }
-    const url = isValidUrl(body.url) ? body.url : null;
-    const text = normalizedText(body.text) ?? url;
-    if (!text) {
+    const input = parseLinkInput(body);
+    if (!input) {
       send(res, 400, { error: 'invalid_payload' });
       return;
     }
-    const result = store.addLink({
-      url,
-      text,
-      title: typeof body.title === 'string' ? body.title : null,
-      sentAt: typeof body.sentAt === 'number' ? body.sentAt : undefined,
-    });
+    const result = store.addLink(input);
     events.emit(result.created ? 'link-added' : 'link-updated', result.link);
     if (result.link.url && needsMetadata(result.link)) enrichMetadata(result.link.id, result.link.url);
     send(res, result.created ? 201 : 200, { id: result.link.id });
@@ -123,7 +137,6 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 401);
       return;
     }
-    store.markPaired();
     const raw = await readBody(req);
     let body: { links?: unknown };
     try {
@@ -136,24 +149,18 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse): Prom
       send(res, 400, { error: 'invalid_payload' });
       return;
     }
-    let accepted = 0;
-    for (const item of body.links) {
-      if (!item || typeof item !== 'object') continue;
-      const obj = item as { url?: unknown; text?: unknown; title?: unknown; sentAt?: unknown };
-      const url = isValidUrl(obj.url) ? obj.url : null;
-      const text = normalizedText(obj.text) ?? url;
-      if (!text) continue;
-      const result = store.addLink({
-        url,
-        text,
-        title: typeof obj.title === 'string' ? obj.title : null,
-        sentAt: typeof obj.sentAt === 'number' ? obj.sentAt : undefined,
-      });
+    const parsed = body.links.map(parseLinkInput);
+    if (parsed.some((item) => item === null)) {
+      send(res, 400, { error: 'invalid_payload' });
+      return;
+    }
+    const inputs = parsed as LinkInput[];
+    for (const input of inputs) {
+      const result = store.addLink(input);
       events.emit(result.created ? 'link-added' : 'link-updated', result.link);
       if (result.link.url && needsMetadata(result.link)) enrichMetadata(result.link.id, result.link.url);
-      accepted++;
     }
-    send(res, 200, { accepted });
+    send(res, 200, { accepted: inputs.length });
     return;
   }
 

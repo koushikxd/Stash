@@ -22,13 +22,11 @@ export interface StashApi {
   getFavicon: (hostname: string) => Promise<string | null>;
   onLinksUpdated: (cb: () => void) => void;
 
-  getPairing: () => Promise<{ secret: string; port: number; paired: boolean; host: string | null; serviceName: string }>;
+  getNetworkInfo: () => Promise<{ port: number; host: string | null }>;
   getSettings: () => Promise<{ launchAtLogin: boolean; maxHistory: number }>;
   updateSettings: (settings: Partial<{ launchAtLogin: boolean; maxHistory: number }>) => Promise<{ launchAtLogin: boolean; maxHistory: number }>;
   setPort: (port: number) => Promise<void>;
-  resetSecret: () => Promise<{ secret: string; port: number }>;
   openSettings: () => Promise<void>;
-  onPairedChanged: (cb: (paired: boolean) => void) => void;
 }
 
 const api: StashApi = {
@@ -42,15 +40,11 @@ const api: StashApi = {
     ipcRenderer.on('links-updated', () => cb());
   },
 
-  getPairing: () => ipcRenderer.invoke('stash:getPairing'),
+  getNetworkInfo: () => ipcRenderer.invoke('stash:getNetworkInfo'),
   getSettings: () => ipcRenderer.invoke('stash:getSettings'),
   updateSettings: (settings) => ipcRenderer.invoke('stash:updateSettings', settings),
   setPort: (port) => ipcRenderer.invoke('stash:setPort', port),
-  resetSecret: () => ipcRenderer.invoke('stash:resetSecret'),
   openSettings: () => ipcRenderer.invoke('stash:openSettings'),
-  onPairedChanged: (cb) => {
-    ipcRenderer.on('paired-changed', (_evt, paired: boolean) => cb(paired));
-  },
 };
 
 contextBridge.exposeInMainWorld('stashApi', api);
