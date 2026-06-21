@@ -9,7 +9,7 @@ class StashApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        RepairNotification.createChannel(this)
+        StuckNotification.createChannel(this)
         connectivityWatcher = ConnectivityWatcher(this)
         connectivityWatcher.start()
     }

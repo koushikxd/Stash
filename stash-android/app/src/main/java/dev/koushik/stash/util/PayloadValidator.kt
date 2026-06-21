@@ -9,7 +9,7 @@ import java.util.Locale
  */
 object PayloadValidator {
 
-    private const val MAX_PAYLOAD_BYTES = 64 * 1024
+    const val MAX_PAYLOAD_BYTES = 4 * 1024
 
     sealed class Verdict {
         data class Url(val normalized: String) : Verdict()
