@@ -7,7 +7,6 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import dev.koushik.stash.net.LinkSender
-import dev.koushik.stash.net.NsdHelper
 import dev.koushik.stash.util.PayloadValidator
 
 /**
@@ -35,12 +34,7 @@ class ShareActivity : Activity() {
 
         val appCtx = applicationContext
         Thread({
-            val helper = NsdHelper(appCtx)
-            val result = try {
-                LinkSender.send(appCtx, text, url, helper)
-            } finally {
-                helper.shutdown()
-            }
+            val result = LinkSender.send(appCtx, text, url)
             mainHandler.post {
                 toast(toastFor(result))
                 finish()
@@ -50,10 +44,8 @@ class ShareActivity : Activity() {
 
     private fun toastFor(r: LinkSender.Result): Int = when (r) {
         is LinkSender.Result.Sent -> R.string.toast_sent
+        is LinkSender.Result.Published -> R.string.toast_published
         is LinkSender.Result.Queued -> R.string.toast_queued
-        is LinkSender.Result.Unauthorized -> R.string.toast_unauthorized
-        is LinkSender.Result.NoMacFound -> R.string.toast_queued
-        is LinkSender.Result.NetworkError -> R.string.toast_offline
     }
 
     private fun toast(resId: Int) {

@@ -50,6 +50,11 @@ object RecordStore {
 
     fun isPendingEmpty(ctx: Context): Boolean = pending(ctx).isEmpty()
 
+    fun find(ctx: Context, id: String): LinkRecord? = synchronized(this) {
+        migrateIfNeeded(ctx)
+        readLocked(ctx).firstOrNull { it.id == id }
+    }
+
     fun countByStatus(ctx: Context, status: Status): Int = synchronized(this) {
         migrateIfNeeded(ctx)
         readLocked(ctx).count { it.status == status }
@@ -87,27 +92,22 @@ object RecordStore {
     }
 
     /**
-     * Mark the [count] oldest PENDING records as SENT. The Mac's batch endpoint
-     * returns only how many it accepted (in order), so we mark the first N by
-     * createdAt — matching the order they were sent.
+     * Mark a record as published to the relay (awaiting the Mac's ack). Does not
+     * touch attempts — publishing succeeded; only the ack is outstanding.
      */
-    fun markFirstPendingSent(ctx: Context, count: Int, now: Long = System.currentTimeMillis()) {
-        if (count <= 0) return
-        synchronized(this) {
-            val list = readLocked(ctx)
-            val pendingIds = list.filter { it.status == Status.PENDING }
-                .sortedBy { it.createdAt }
-                .take(count)
-                .map { it.id }
-                .toSet()
-            if (pendingIds.isEmpty()) return
-            writeLocked(ctx, list.map { if (it.id in pendingIds) it.markSent(now) else it })
-        }
+    fun markPublished(ctx: Context, id: String, now: Long = System.currentTimeMillis()) {
+        mutate(ctx) { if (it.id == id) it.copy(publishedAt = now, updatedAt = now) else it }
     }
 
-    /** Record a failed attempt against every currently-PENDING record. */
-    fun recordAttemptOnPending(ctx: Context, error: String?, now: Long = System.currentTimeMillis()) {
-        mutate(ctx) { if (it.status == Status.PENDING) it.withAttempt(error, now) else it }
+    /** Apply the Mac's acks: mark any still-PENDING record in [ids] as SENT. Idempotent. */
+    fun markSentIfPending(ctx: Context, ids: Set<String>, now: Long = System.currentTimeMillis()) {
+        if (ids.isEmpty()) return
+        mutate(ctx) { if (it.id in ids && it.status == Status.PENDING) it.markSent(now) else it }
+    }
+
+    /** Record a failed publish attempt against a single record. */
+    fun recordAttempt(ctx: Context, id: String, error: String?, now: Long = System.currentTimeMillis()) {
+        mutate(ctx) { if (it.id == id) it.withAttempt(error, now) else it }
     }
 
     fun fail(ctx: Context, ids: Set<String>, error: String?, now: Long = System.currentTimeMillis()) {
@@ -121,7 +121,7 @@ object RecordStore {
     fun requeue(ctx: Context, id: String, now: Long = System.currentTimeMillis()) {
         mutate(ctx) {
             if (it.id == id) {
-                it.copy(status = Status.PENDING, attempts = 0, lastError = null, sentAt = null, updatedAt = now)
+                it.copy(status = Status.PENDING, attempts = 0, lastError = null, sentAt = null, publishedAt = null, updatedAt = now)
             } else it
         }
     }

@@ -10,6 +10,11 @@ import dev.koushik.stash.data.RecordStore
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Flushes the pending queue whenever the device regains internet. Delivery now goes
+ * through the relay, so *any* internet-capable network (Wi-Fi or mobile data) can
+ * deliver — hence NET_CAPABILITY_INTERNET rather than the old Wi-Fi-only filter.
+ */
 class ConnectivityWatcher(private val ctx: Context) {
 
     private val appCtx = ctx.applicationContext
@@ -19,12 +24,12 @@ class ConnectivityWatcher(private val ctx: Context) {
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            flushAsync("wifi available")
+            flushAsync("network available")
         }
 
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                flushAsync("wifi capabilities changed")
+            if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                flushAsync("internet capability changed")
             }
         }
     }
@@ -32,11 +37,11 @@ class ConnectivityWatcher(private val ctx: Context) {
     fun start() {
         try {
             val request = NetworkRequest.Builder()
-                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
             cm.registerNetworkCallback(request, callback)
         } catch (t: Throwable) {
-            Log.w(TAG, "wifi callback registration failed", t)
+            Log.w(TAG, "network callback registration failed", t)
         }
         flushAsync("app start")
         FlushQueueWorker.schedule(appCtx)
@@ -50,13 +55,11 @@ class ConnectivityWatcher(private val ctx: Context) {
             return
         }
         executor.execute {
-            val helper = NsdHelper(appCtx)
             try {
                 Log.d(TAG, "flush start: $reason")
-                val result = LinkSender.flushQueue(appCtx, helper)
+                val result = LinkSender.flushQueue(appCtx)
                 Log.d(TAG, "flush result: $result")
             } finally {
-                helper.shutdown()
                 flushing.set(false)
             }
         }

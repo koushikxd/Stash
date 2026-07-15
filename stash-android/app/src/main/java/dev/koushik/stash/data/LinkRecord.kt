@@ -23,6 +23,7 @@ data class LinkRecord(
     val createdAt: Long,
     val updatedAt: Long,
     val sentAt: Long? = null,
+    val publishedAt: Long? = null,
     val attempts: Int = 0,
     val lastError: String? = null,
 ) {
@@ -86,6 +87,7 @@ data class LinkRecord(
         put(FIELD_CREATED, createdAt)
         put(FIELD_UPDATED, updatedAt)
         putOpt(FIELD_SENT_AT, sentAt)
+        putOpt(FIELD_PUBLISHED_AT, publishedAt)
         put(FIELD_ATTEMPTS, attempts)
         putOpt(FIELD_LAST_ERROR, lastError)
     }
@@ -101,6 +103,7 @@ data class LinkRecord(
         private const val FIELD_CREATED = "createdAt"
         private const val FIELD_UPDATED = "updatedAt"
         private const val FIELD_SENT_AT = "sentAt"
+        private const val FIELD_PUBLISHED_AT = "publishedAt"
         private const val FIELD_ATTEMPTS = "attempts"
         private const val FIELD_LAST_ERROR = "lastError"
 
@@ -131,6 +134,7 @@ data class LinkRecord(
                 createdAt = created,
                 updatedAt = obj.optLong(FIELD_UPDATED, created),
                 sentAt = if (obj.isNull(FIELD_SENT_AT)) null else obj.optLong(FIELD_SENT_AT).takeIf { it > 0 },
+                publishedAt = if (obj.isNull(FIELD_PUBLISHED_AT)) null else obj.optLong(FIELD_PUBLISHED_AT).takeIf { it > 0 },
                 attempts = obj.optInt(FIELD_ATTEMPTS, 0),
                 lastError = if (obj.isNull(FIELD_LAST_ERROR)) null else obj.optString(FIELD_LAST_ERROR).takeIf { it.isNotBlank() },
             )

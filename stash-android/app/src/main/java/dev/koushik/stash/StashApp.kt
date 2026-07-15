@@ -2,6 +2,7 @@ package dev.koushik.stash
 
 import android.app.Application
 import dev.koushik.stash.net.ConnectivityWatcher
+import dev.koushik.stash.net.FlushQueueWorker
 
 class StashApp : Application() {
 
@@ -12,5 +13,6 @@ class StashApp : Application() {
         StuckNotification.createChannel(this)
         connectivityWatcher = ConnectivityWatcher(this)
         connectivityWatcher.start()
+        FlushQueueWorker.schedulePeriodic(this)
     }
 }

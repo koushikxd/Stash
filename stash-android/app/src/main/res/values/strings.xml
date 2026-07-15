@@ -20,9 +20,8 @@
 
     <!-- Share toasts -->
     <string name="toast_sent">Sent to Mac</string>
+    <string name="toast_published">Sent — Mac will confirm</string>
     <string name="toast_queued">Saved — will sync when Mac is online</string>
-    <string name="toast_unauthorized">Mac rejected the request</string>
-    <string name="toast_offline">Mac offline — saved</string>
     <string name="toast_not_text">Nothing to stash</string>
     <string name="toast_retrying">Retrying…</string>
 

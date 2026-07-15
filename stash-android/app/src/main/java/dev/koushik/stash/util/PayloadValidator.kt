@@ -9,7 +9,9 @@ import java.util.Locale
  */
 object PayloadValidator {
 
-    const val MAX_PAYLOAD_BYTES = 4 * 1024
+    // Kept below ntfy's 4096-byte body limit so the encrypted+base64 envelope
+    // (which inflates the payload) never trips ntfy's attachment conversion.
+    const val MAX_PAYLOAD_BYTES = 2800
 
     sealed class Verdict {
         data class Url(val normalized: String) : Verdict()
