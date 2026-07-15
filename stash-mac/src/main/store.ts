@@ -31,7 +31,6 @@ export interface Settings {
 }
 
 interface StoreShape {
-  port: number;
   links: Link[];
   settings: Settings;
 }
@@ -40,8 +39,6 @@ const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: true,
   maxHistory: 1000,
 };
-
-const DEFAULT_PORT = 7891;
 
 let cache: StoreShape;
 let storePath: string;
@@ -53,13 +50,11 @@ function read(): StoreShape {
     const raw = fs.readFileSync(storePath, 'utf8');
     const parsed = JSON.parse(raw) as Partial<StoreShape>;
     return {
-      port: parsed.port ?? DEFAULT_PORT,
       links: Array.isArray(parsed.links) ? parsed.links.map(normalizeLink) : [],
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
     };
   } catch {
     return {
-      port: DEFAULT_PORT,
       links: [],
       settings: { ...DEFAULT_SETTINGS },
     };
@@ -98,10 +93,6 @@ export function getSecret(): string {
   return getSharedSecret();
 }
 
-export function getPort(): number {
-  return cache.port;
-}
-
 export function getSettings(): Settings {
   return { ...cache.settings };
 }
@@ -111,13 +102,6 @@ export function updateSettings(settings: Partial<Settings>): Settings {
   write();
   events.emit('settings-changed', getSettings());
   return getSettings();
-}
-
-export function setPort(port: number): void {
-  if (!Number.isInteger(port) || port < 1 || port > 65535 || cache.port === port) return;
-  cache.port = port;
-  write();
-  events.emit('port-changed', port);
 }
 
 export function getLinks(): Link[] {

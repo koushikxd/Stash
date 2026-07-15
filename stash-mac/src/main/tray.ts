@@ -1,9 +1,8 @@
 import * as path from 'path';
-import * as os from 'os';
 import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow } from 'electron';
 import { menubar, Menubar } from 'menubar';
 import * as store from './store';
-import { events as serverEvents } from './server';
+import { events as relayEvents, getStatus as getRelayStatus, NTFY_BASE_URL } from './ntfy';
 import { getFavicon } from './favicon';
 
 const ASSETS = path.join(app.getAppPath(), 'assets');
@@ -68,13 +67,12 @@ function openSettings(): void {
   });
 }
 
-function localAddress(): string | null {
-  for (const items of Object.values(os.networkInterfaces())) {
-    for (const item of items ?? []) {
-      if (item.family === 'IPv4' && !item.internal) return item.address;
-    }
+function relayHost(): string {
+  try {
+    return new URL(NTFY_BASE_URL).host;
+  } catch {
+    return NTFY_BASE_URL;
   }
-  return null;
 }
 
 function registerIpc(): void {
@@ -97,18 +95,15 @@ function registerIpc(): void {
   });
   ipcMain.handle('stash:getFavicon', (_evt, hostname: string) => getFavicon(hostname));
 
-  ipcMain.handle('stash:getNetworkInfo', () => ({
-    port: store.getPort(),
-    host: localAddress(),
-  }));
+  ipcMain.handle('stash:getRelayStatus', () => {
+    const status = getRelayStatus();
+    return { connected: status.connected, lastEventAt: status.lastEventAt, relayHost: relayHost() };
+  });
   ipcMain.handle('stash:getSettings', () => store.getSettings());
   ipcMain.handle('stash:updateSettings', (_evt, settings: Partial<store.Settings>) => {
     const next = store.updateSettings(settings);
     app.setLoginItemSettings({ openAtLogin: next.launchAtLogin, openAsHidden: true });
     return next;
-  });
-  ipcMain.handle('stash:setPort', (_evt, port: number) => {
-    store.setPort(port);
   });
   ipcMain.handle('stash:openSettings', () => {
     openSettings();
@@ -146,12 +141,12 @@ export function init(): void {
     notifyLinks();
   });
 
-  serverEvents.on('link-added', () => {
+  relayEvents.on('link-added', () => {
     refreshIcon();
     notifyLinks();
   });
 
-  serverEvents.on('link-updated', () => {
+  relayEvents.on('link-updated', () => {
     notifyLinks();
   });
 

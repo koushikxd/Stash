@@ -1,8 +1,7 @@
 import { app, powerMonitor } from 'electron';
 import * as os from 'os';
 import * as store from './store';
-import * as server from './server';
-import * as mdns from './mdns';
+import * as ntfy from './ntfy';
 import * as tray from './tray';
 import { isSharedSecretConfigured } from './sharedSecret';
 
@@ -18,12 +17,12 @@ function networkFingerprint(): string {
 }
 
 let lastFingerprint = '';
-let readvertiseTimer: NodeJS.Timeout | null = null;
+let reconnectTimer: NodeJS.Timeout | null = null;
 
 /**
- * The Mac's LAN IP can change while it's awake (WiFi switch, dock, VPN). mDNS only
- * re-advertised on sleep/resume before, so discovery could hand the phone a dead
- * address. Poll the interface list and re-advertise (debounced) whenever it shifts.
+ * The Mac's network can flip while it's awake (Wi-Fi switch, dock, VPN), which can
+ * silently drop the relay stream. Poll the interface list and force a (debounced)
+ * relay reconnect whenever it shifts, so delivery resumes without a restart.
  */
 function watchNetworkChanges(): void {
   lastFingerprint = networkFingerprint();
@@ -31,11 +30,9 @@ function watchNetworkChanges(): void {
     const current = networkFingerprint();
     if (current === lastFingerprint) return;
     lastFingerprint = current;
-    console.log('[stash] network changed — re-advertising mdns');
-    if (readvertiseTimer) clearTimeout(readvertiseTimer);
-    readvertiseTimer = setTimeout(() => {
-      void mdns.restart();
-    }, 1500);
+    console.log('[stash] network changed — reconnecting relay');
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => ntfy.restart(), 1500);
   }, 5000);
 }
 
@@ -44,7 +41,7 @@ if (!gotLock) {
   app.quit();
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   if (app.dock) app.dock.hide();
 
   store.init();
@@ -52,21 +49,18 @@ app.whenReady().then(async () => {
     openAtLogin: store.getSettings().launchAtLogin,
     openAsHidden: true,
   });
-  const secret = store.getSecret();
-  const port = store.getPort();
 
   console.log('========================================');
-  console.log('[stash] port   =', port);
+  console.log('[stash] relay =', ntfy.NTFY_BASE_URL);
   console.log('[stash] shared secret configured =', isSharedSecretConfigured());
   console.log('========================================');
 
-  await server.start(port);
-  mdns.start(port, secret);
   tray.init();
+  ntfy.start();
 
   powerMonitor.on('resume', () => {
-    console.log('[stash] resume — restarting mdns');
-    void mdns.restart();
+    console.log('[stash] resume — reconnecting relay');
+    ntfy.restart();
   });
 
   watchNetworkChanges();
@@ -76,7 +70,6 @@ app.on('window-all-closed', () => {
   // keep app running in tray
 });
 
-app.on('before-quit', async () => {
-  await mdns.stop();
-  await server.stop();
+app.on('before-quit', () => {
+  ntfy.stop();
 });

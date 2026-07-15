@@ -16,8 +16,10 @@ import * as path from 'path';
 const PLACEHOLDER = 'stash-mac-unconfigured-shared-secret';
 
 function fromFile(): string | null {
-  // Look beside the app root in dev (project dir) and in packaged builds.
+  // Look in the packaged Resources dir first (electron-builder `extraResources`
+  // copies stash.secret.json there), then beside the project root in dev.
   const candidates = [
+    path.join(process.resourcesPath, 'stash.secret.json'),
     path.join(process.cwd(), 'stash.secret.json'),
     path.join(__dirname, '..', '..', 'stash.secret.json'),
     path.join(__dirname, '..', '..', '..', 'stash.secret.json'),

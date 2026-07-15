@@ -22,10 +22,9 @@ export interface StashApi {
   getFavicon: (hostname: string) => Promise<string | null>;
   onLinksUpdated: (cb: () => void) => void;
 
-  getNetworkInfo: () => Promise<{ port: number; host: string | null }>;
+  getRelayStatus: () => Promise<{ connected: boolean; lastEventAt: number; relayHost: string }>;
   getSettings: () => Promise<{ launchAtLogin: boolean; maxHistory: number }>;
   updateSettings: (settings: Partial<{ launchAtLogin: boolean; maxHistory: number }>) => Promise<{ launchAtLogin: boolean; maxHistory: number }>;
-  setPort: (port: number) => Promise<void>;
   openSettings: () => Promise<void>;
 }
 
@@ -40,10 +39,9 @@ const api: StashApi = {
     ipcRenderer.on('links-updated', () => cb());
   },
 
-  getNetworkInfo: () => ipcRenderer.invoke('stash:getNetworkInfo'),
+  getRelayStatus: () => ipcRenderer.invoke('stash:getRelayStatus'),
   getSettings: () => ipcRenderer.invoke('stash:getSettings'),
   updateSettings: (settings) => ipcRenderer.invoke('stash:updateSettings', settings),
-  setPort: (port) => ipcRenderer.invoke('stash:setPort', port),
   openSettings: () => ipcRenderer.invoke('stash:openSettings'),
 };
 

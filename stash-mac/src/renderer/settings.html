@@ -8,20 +8,17 @@
   <body>
     <main>
       <h1>stash</h1>
-      <p class="hint">Links shared from your phone arrive here automatically when it's on the same Wi-Fi. No pairing needed — both apps already share your private key.</p>
+      <p class="hint">Links shared from your phone arrive here automatically, from anywhere — over an encrypted relay. No pairing, no network setup; both apps already share your private key.</p>
 
-      <div id="status" class="status pending">Waiting for a network connection…</div>
+      <div id="status" class="status pending">Connecting to relay…</div>
 
       <details class="manual">
-        <summary>This Mac on the network</summary>
-        <div class="kv"><span>Mac IP</span><code id="host">—</code></div>
-        <div class="kv"><span>Port</span><code id="port">—</code></div>
+        <summary>Relay</summary>
+        <div class="kv"><span>Server</span><code id="relayHost">—</code></div>
       </details>
 
       <section class="prefs">
         <label><input id="launch" type="checkbox" /> Launch at login</label>
-        <label class="port-row"><span>Port</span><input id="portInput" type="number" min="1" max="65535" /></label>
-        <div id="restart" class="restart">Restart stash for the new port to take effect.</div>
       </section>
     </main>
     <script src="settings.js"></script>

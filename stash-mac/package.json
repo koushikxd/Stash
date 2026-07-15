@@ -15,9 +15,15 @@
   },
   "author": "koushik",
   "license": "MIT",
+  "build": {
+    "appId": "dev.koushik.stash",
+    "productName": "stash",
+    "extraResources": [
+      "stash.secret.json"
+    ]
+  },
   "dependencies": {
     "@electron/notarize": "^2.5.0",
-    "bonjour-service": "^1.2.1",
     "menubar": "^9.5.1"
   },
   "devDependencies": {
