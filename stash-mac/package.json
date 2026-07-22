@@ -18,6 +18,19 @@
   "build": {
     "appId": "dev.koushik.stash",
     "productName": "stash",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
     "extraResources": [
       "stash.secret.json"
     ]
