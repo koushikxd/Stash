@@ -1,96 +1,100 @@
 # stash
 
-Mac menubar receiver plus Android share target for sending links from phone to laptop on the same Wi-Fi. No cloud, no accounts, no database.
+Send links and text from your Android phone to a Mac menubar app — instantly, from **any** network (home Wi-Fi, office, mobile data). No accounts, no cloud database, no pairing, no same-Wi-Fi requirement.
+
+Delivery rides on the free public [ntfy.sh](https://ntfy.sh) relay, but everything is **end-to-end encrypted** (AES-256-GCM). A single shared secret — baked into both apps at build time — is the only thing that ties your phone to your Mac. ntfy only ever sees ciphertext, and neither side needs an ntfy account.
 
 ## Apps
 
-- `stash-mac`: Electron menubar app. Receives authenticated HTTP posts, advertises via Bonjour, stores links locally.
-- `stash-android`: Kotlin Android app. Appears in the Android share sheet, discovers the Mac via NSD, sends immediately or queues offline.
+- `stash-mac`: Electron menubar app. Subscribes to the relay, decrypts incoming links, shows them in a popover, and sends encrypted delivery acks.
+- `stash-android`: Kotlin app. Appears in the Android share sheet, encrypts what you share, publishes to the relay, and queues offline until it's confirmed delivered.
 
-## Install on Mac
+---
+
+## Setup
+
+### Step 1 — Create the shared secret (do this first)
+
+Both apps must be built with the **exact same** secret. Generate one:
+
+```sh
+openssl rand -base64 24
+```
+
+Then write that identical value into **both** files (both are gitignored — the secret never lands in git):
+
+**`stash-mac/stash.secret.json`**
+```json
+{ "sharedSecret": "PASTE_THE_SAME_SECRET_HERE" }
+```
+
+**`stash-android/secrets.properties`**
+```properties
+STASH_SHARED_SECRET=PASTE_THE_SAME_SECRET_HERE
+```
+
+> If the two values differ by even one character, the apps derive different relay topics and encryption keys, and nothing will arrive. This is the #1 thing to double-check.
+
+### Step 2 — Install on Mac
+
+Requires Node.js + [pnpm](https://pnpm.io).
 
 ```sh
 cd stash-mac
-npm install
-npm run dist
-open out/stash-0.1.0-arm64.dmg
+pnpm install
+pnpm run dist
+open release/stash-0.1.0-arm64.dmg
 ```
 
-In the DMG window, drag `stash` to Applications. Launch `stash`; it runs in the menu bar. Open Settings and use the QR/secret to pair Android.
+In the DMG window, drag `stash` into **Applications**, then launch it. It runs **in the menu bar only** — there is no dock icon. The secret from `stash.secret.json` is bundled into the app automatically.
 
-## Install on Android Phone
+Because the build is unsigned, macOS Gatekeeper blocks it on first launch. Either:
 
-1. Open `stash-android` in Android Studio.
-2. Connect your Android phone with USB debugging enabled.
-3. Select your phone in the device picker.
-4. Click Run.
-5. Android Studio installs `stash` on the phone.
-6. Open `stash`, pair it with the Mac, then share links or text to `stash`.
+- Right-click the app in Applications → **Open** → **Open**, or
+- Clear the quarantine flag:
+  ```sh
+  xattr -dr com.apple.quarantine /Applications/stash.app
+  ```
 
-Optional command-line debug APK:
+### Step 3 — Install on Android
 
-```sh
-cd stash-android
-./gradlew assembleDebug
-```
+Open `stash-android` in **Android Studio**, connect your phone (USB debugging on), pick it in the device picker, and click **Run**. Android Studio handles the JDK and build; the secret from `secrets.properties` is compiled in automatically.
 
-## Development Run
+### Step 4 — Use it
 
-Run the Mac app without building the `.dmg`:
+From any app on your phone, tap **Share** → **stash**. The link (or text) appears in the Mac menubar popover within a couple of seconds — from any network.
 
-```sh
-cd stash-mac
-npm install
-npm run dev
-```
+- **Sent** toast → the Mac confirmed delivery.
+- **Sent — Mac will confirm** → published to the relay; it'll flip to confirmed once the Mac (which may be asleep/offline) picks it up.
+- **Saved** toast → phone is offline; it auto-delivers the moment connectivity returns.
 
-## Release Builds
+In the Mac popover, click a row to copy the URL (and remove it), or the open icon to launch it in your browser.
 
-Mac `.dmg`:
+---
 
-```sh
-cd stash-mac
-npm run dist
-open out/stash-0.1.0-arm64.dmg
-```
+## Rotating the secret
 
-Notarization uses these environment variables when present:
+Pick a new value, update **both** `stash.secret.json` and `secrets.properties`, then rebuild and reinstall both apps. Old in-flight messages keyed to the previous secret will simply be ignored.
 
-- `NOTARIZE_APPLE_ID`
-- `NOTARIZE_APPLE_ID_PASSWORD`
-- `NOTARIZE_TEAM_ID`
+## Release builds
 
-Android release `.apk`:
+**Android release APK** (configure signing in Android Studio or a Gradle signing config first):
 
 ```sh
 cd stash-android
 ./gradlew assembleRelease
 ```
 
-Configure signing credentials in Android Studio or a local Gradle signing config before distributing outside local sideloading.
-
-## macOS Permissions
-
-macOS 15+ requires local-network permission for Bonjour/local LAN traffic. `electron-builder.yml` includes:
-
-- `NSLocalNetworkUsageDescription`
-- `NSBonjourServices` with `_stash._tcp`
-
-If discovery fails on a clean Mac, check System Settings permissions and the firewall prompt.
-
-## Acceptance Checklist
-
-- Pair a fresh Android install with the Mac QR in under 30 seconds.
-- Share a link while Mac is awake; it appears in the stashover within 1 second.
-- Click a row; it copies the URL and removes the row.
-- Click the open icon; it opens the URL and keeps the row.
-- Sleep or quit the Mac, share several links, wake the Mac; queued links flush in order.
-- Enable notifications in Mac settings; new links show a native notification.
-- Reset Mac secret; Android shows the re-pair path on the next unauthorized send.
+**Mac** builds are currently unsigned/un-notarized (fine for personal use). For a signed/notarized build you'd need an Apple Developer ID; the packaging metadata lives in `stash-mac/package.json` under the `build` field.
 
 ## Troubleshooting
 
-- Phone cannot find Mac: make sure both devices are on the same Wi-Fi and macOS local-network permission is allowed.
-- Requests hang: verify the Mac firewall allowed incoming connections for `stash`.
-- Android says bad secret: reset pairing by scanning the QR again.
-- Titles or favicons are missing: some sites block local metadata fetches; the hostname fallback is expected.
+- **Nothing arrives on the Mac.** Almost always a secret mismatch — verify `stash.secret.json` and `secrets.properties` hold byte-for-byte identical values, then rebuild both. The Mac logs `shared secret configured = true` on startup; if it says `false` (or warns about a PLACEHOLDER), the secret file wasn't found.
+- **No menubar icon after install.** Reinstall from the latest `release/stash-0.1.0-arm64.dmg` (quit the old copy first with `killall stash`), then replace the app in Applications.
+- **App shows in the dock.** It shouldn't — the packaged app sets `LSUIElement`, making it menubar-only. If you see a dock icon, you're running an older build; rebuild and reinstall.
+- **Gatekeeper won't open it.** See the `xattr` command in Step 2.
+- **Titles or favicons are missing.** Some sites block metadata fetches; the hostname fallback is expected.
+
+## Architecture
+
+See [`CONTEXT.md`](CONTEXT.md) for the full design: the encrypted wire protocol, how the secret derives relay topics and keys, the end-to-end ack/retry model, and per-app implementation notes.
