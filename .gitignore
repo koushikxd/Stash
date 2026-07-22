@@ -13,6 +13,7 @@ stash-android/*.keystore
 stash-mac/node_modules/
 stash-mac/dist/
 stash-mac/out/
+stash-mac/release/
 
 # Shared secret — never commit. Each machine configures its own copy.
 stash-android/secrets.properties
