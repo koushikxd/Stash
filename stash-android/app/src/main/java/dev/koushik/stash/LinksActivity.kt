@@ -3,6 +3,7 @@ package dev.koushik.stash
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -34,11 +35,18 @@ class LinksActivity : AppCompatActivity() {
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         toolbar.setOnMenuItemClickListener { item ->
-            if (item.itemId == R.id.action_clear) {
-                RecordStore.clearTerminal(this)
-                reload()
-                true
-            } else false
+            when (item.itemId) {
+                R.id.action_clear -> {
+                    RecordStore.clearTerminal(this)
+                    reload()
+                    true
+                }
+                R.id.action_resend -> {
+                    confirmResendAll()
+                    true
+                }
+                else -> false
+            }
         }
 
         tabs = findViewById(R.id.tabs)
@@ -66,6 +74,30 @@ class LinksActivity : AppCompatActivity() {
         FlushQueueWorker.schedule(this)
         toast(getString(R.string.toast_retrying))
         reload()
+    }
+
+    /**
+     * Recovery path for a Mac that lost its list: requeue every SENT record and let the
+     * normal flush deliver it again. Nothing new is sent over the wire that the existing
+     * queue can't already handle, so offline/backoff behaviour is unchanged.
+     */
+    private fun confirmResendAll() {
+        val sent = RecordStore.countByStatus(this, Status.SENT)
+        if (sent == 0) {
+            toast(getString(R.string.toast_resend_none))
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.resend_confirm_title)
+            .setMessage(getString(R.string.resend_confirm_body, sent))
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.action_resend) { _, _ ->
+                val requeued = RecordStore.requeueSent(this)
+                FlushQueueWorker.schedule(this)
+                toast(getString(R.string.toast_resend, requeued))
+                reload()
+            }
+            .show()
     }
 
     private fun reload() {

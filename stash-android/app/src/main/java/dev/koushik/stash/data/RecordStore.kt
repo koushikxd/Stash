@@ -78,31 +78,8 @@ object RecordStore {
         return record
     }
 
-    fun update(ctx: Context, record: LinkRecord) {
-        synchronized(this) {
-            val list = readLocked(ctx).toMutableList()
-            val idx = list.indexOfFirst { it.id == record.id }
-            if (idx >= 0) list[idx] = record else list.add(record)
-            writeLocked(ctx, list)
-        }
-    }
-
     fun markSent(ctx: Context, id: String, now: Long = System.currentTimeMillis()) {
         mutate(ctx) { if (it.id == id) it.markSent(now) else it }
-    }
-
-    /**
-     * Mark a record as published to the relay (awaiting the Mac's ack). Does not
-     * touch attempts — publishing succeeded; only the ack is outstanding.
-     */
-    fun markPublished(ctx: Context, id: String, now: Long = System.currentTimeMillis()) {
-        mutate(ctx) { if (it.id == id) it.copy(publishedAt = now, updatedAt = now) else it }
-    }
-
-    /** Apply the Mac's acks: mark any still-PENDING record in [ids] as SENT. Idempotent. */
-    fun markSentIfPending(ctx: Context, ids: Set<String>, now: Long = System.currentTimeMillis()) {
-        if (ids.isEmpty()) return
-        mutate(ctx) { if (it.id in ids && it.status == Status.PENDING) it.markSent(now) else it }
     }
 
     /** Record a failed publish attempt against a single record. */
@@ -121,8 +98,29 @@ object RecordStore {
     fun requeue(ctx: Context, id: String, now: Long = System.currentTimeMillis()) {
         mutate(ctx) {
             if (it.id == id) {
-                it.copy(status = Status.PENDING, attempts = 0, lastError = null, sentAt = null, publishedAt = null, updatedAt = now)
+                it.copy(status = Status.PENDING, attempts = 0, lastError = null, sentAt = null, updatedAt = now)
             } else it
+        }
+    }
+
+    /**
+     * Put every already-delivered record back in the queue so the whole history is
+     * republished. The Mac dedupes by canonical url, so anything it still holds is
+     * merged rather than duplicated. Returns how many were requeued.
+     */
+    fun requeueSent(ctx: Context, now: Long = System.currentTimeMillis()): Int {
+        synchronized(this) {
+            val list = readLocked(ctx)
+            val next = list.map {
+                // sentAt is deliberately kept: it marks this as a redelivery, which
+                // exempts it from the never-delivered expiry in [expireOlderThan].
+                if (it.status == Status.SENT) {
+                    it.copy(status = Status.PENDING, attempts = 0, lastError = null, updatedAt = now)
+                } else it
+            }
+            val count = list.count { it.status == Status.SENT }
+            if (count > 0) writeLocked(ctx, next)
+            return count
         }
     }
 
@@ -134,13 +132,17 @@ object RecordStore {
         }
     }
 
-    /** Move PENDING records older than [maxAgeMs] to EXPIRED. Returns how many. */
+    /**
+     * Move never-delivered PENDING records older than [maxAgeMs] to EXPIRED. Records
+     * requeued by [requeueSent] still carry a `sentAt`, so a deliberate redelivery of
+     * old history is never aged out from under the user. Returns how many expired.
+     */
     fun expireOlderThan(ctx: Context, maxAgeMs: Long, now: Long = System.currentTimeMillis()): Int {
         synchronized(this) {
             val list = readLocked(ctx)
             var expired = 0
             val next = list.map {
-                if (it.status == Status.PENDING && now - it.createdAt >= maxAgeMs) {
+                if (it.status == Status.PENDING && it.sentAt == null && now - it.createdAt >= maxAgeMs) {
                     expired++
                     it.markExpired(now)
                 } else it

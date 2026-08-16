@@ -11,6 +11,11 @@
     <string name="links_empty">Nothing here yet. Share a link from any app to stash it.</string>
     <string name="action_retry">Retry</string>
     <string name="action_clear">Clear</string>
+    <string name="action_resend">Re-send all to Mac</string>
+    <string name="resend_confirm_title">Re-send everything?</string>
+    <string name="resend_confirm_body">%1$d sent link(s) will be delivered to your Mac again. Duplicates are merged there.</string>
+    <string name="toast_resend_none">Nothing sent yet to re-send</string>
+    <string name="toast_resend">Re-sending %1$d link(s)…</string>
 
     <!-- Record status labels -->
     <string name="status_pending">Pending</string>
@@ -20,9 +25,9 @@
 
     <!-- Share toasts -->
     <string name="toast_sent">Sent to Mac</string>
-    <string name="toast_published">Sent — Mac will confirm</string>
-    <string name="toast_queued">Saved — will sync when Mac is online</string>
+    <string name="toast_queued">Saved, will send when back online</string>
     <string name="toast_not_text">Nothing to stash</string>
+    <string name="toast_too_large">Too large to send</string>
     <string name="toast_retrying">Retrying…</string>
 
     <!-- Stuck-delivery notification -->
