@@ -11,11 +11,23 @@ import * as path from 'path';
  *   3. a platform-specific placeholder that lets the app run but never authenticates
  *
  * The SAME value must be set on Android (stash-android/secrets.properties).
+ *
+ * The same gitignored file also carries the Upstash Redis REST credentials used by the
+ * relay transport. Those are transport-only and never feed the encryption secret.
  */
 
 const PLACEHOLDER = 'stash-mac-unconfigured-shared-secret';
 
-function fromFile(): string | null {
+interface SecretFile {
+  sharedSecret?: unknown;
+  upstashRedisRestUrl?: unknown;
+  upstashRedisRestToken?: unknown;
+}
+
+let fileCache: SecretFile | null = null;
+
+function secretFile(): SecretFile {
+  if (fileCache) return fileCache;
   // Look in the packaged Resources dir first (electron-builder `extraResources`
   // copies stash.secret.json there), then beside the project root in dev.
   const candidates = [
@@ -26,16 +38,22 @@ function fromFile(): string | null {
   ];
   for (const file of candidates) {
     try {
-      const raw = fs.readFileSync(file, 'utf8');
-      const parsed = JSON.parse(raw) as { sharedSecret?: unknown };
-      if (typeof parsed.sharedSecret === 'string' && parsed.sharedSecret.trim()) {
-        return parsed.sharedSecret.trim();
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as SecretFile;
+      if (parsed && typeof parsed === 'object') {
+        fileCache = parsed;
+        return fileCache;
       }
     } catch {
       // try next candidate
     }
   }
-  return null;
+  fileCache = {};
+  return fileCache;
+}
+
+function fromFile(field: keyof SecretFile): string | null {
+  const value = secretFile()[field];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 let cached: string | null = null;
@@ -43,7 +61,7 @@ let cached: string | null = null;
 export function getSharedSecret(): string {
   if (cached) return cached;
   const fromEnv = process.env.STASH_SHARED_SECRET;
-  cached = (fromEnv && fromEnv.trim()) || fromFile() || PLACEHOLDER;
+  cached = (fromEnv && fromEnv.trim()) || fromFile('sharedSecret') || PLACEHOLDER;
   if (cached === PLACEHOLDER) {
     console.warn('[stash] using PLACEHOLDER shared secret — set STASH_SHARED_SECRET or stash.secret.json');
   }
@@ -52,4 +70,19 @@ export function getSharedSecret(): string {
 
 export function isSharedSecretConfigured(): boolean {
   return getSharedSecret() !== PLACEHOLDER;
+}
+
+export function getRelayUrl(): string {
+  const fromEnv = process.env.UPSTASH_REDIS_REST_URL;
+  const url = (fromEnv && fromEnv.trim()) || fromFile('upstashRedisRestUrl') || '';
+  return url.replace(/\/+$/, '');
+}
+
+export function getRelayToken(): string {
+  const fromEnv = process.env.UPSTASH_REDIS_REST_TOKEN;
+  return (fromEnv && fromEnv.trim()) || fromFile('upstashRedisRestToken') || '';
+}
+
+export function isRelayConfigured(): boolean {
+  return getRelayUrl() !== '' && getRelayToken() !== '';
 }

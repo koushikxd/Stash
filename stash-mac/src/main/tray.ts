@@ -2,7 +2,7 @@ import * as path from 'path';
 import { app, ipcMain, clipboard, shell, nativeImage, BrowserWindow } from 'electron';
 import { menubar, Menubar } from 'menubar';
 import * as store from './store';
-import { events as relayEvents, getStatus as getRelayStatus, NTFY_BASE_URL } from './ntfy';
+import { events as relayEvents, getStatus as getRelayStatus, getRelayHost, pollNow } from './relay';
 import { getFavicon } from './favicon';
 
 const ASSETS = path.join(app.getAppPath(), 'assets');
@@ -41,6 +41,9 @@ function notifyLinks(): void {
 }
 
 function openSettings(): void {
+  // The status line reads "connected" from the last answered poll, which can be five
+  // minutes stale while idle. Poll now so Settings doesn't show a false Offline.
+  pollNow();
   if (settingsWin && !settingsWin.isDestroyed()) {
     settingsWin.show();
     settingsWin.focus();
@@ -67,25 +70,14 @@ function openSettings(): void {
   });
 }
 
-function relayHost(): string {
-  try {
-    return new URL(NTFY_BASE_URL).host;
-  } catch {
-    return NTFY_BASE_URL;
-  }
-}
-
 function registerIpc(): void {
   ipcMain.handle('stash:getLinks', () => store.getLinks());
+  // Both of these refresh through store's 'links-changed' listener in init().
   ipcMain.handle('stash:removeLink', (_evt, id: string) => {
     store.removeLink(id);
-    refreshIcon();
-    notifyLinks();
   });
   ipcMain.handle('stash:clearAll', () => {
     store.clearAll();
-    refreshIcon();
-    notifyLinks();
   });
   ipcMain.handle('stash:copy', (_evt, text: string) => {
     clipboard.writeText(text);
@@ -97,7 +89,7 @@ function registerIpc(): void {
 
   ipcMain.handle('stash:getRelayStatus', () => {
     const status = getRelayStatus();
-    return { connected: status.connected, lastEventAt: status.lastEventAt, relayHost: relayHost() };
+    return { connected: status.connected, lastEventAt: status.lastEventAt, relayHost: getRelayHost() };
   });
   ipcMain.handle('stash:getSettings', () => store.getSettings());
   ipcMain.handle('stash:updateSettings', (_evt, settings: Partial<store.Settings>) => {
@@ -139,6 +131,11 @@ export function init(): void {
 
   mb.on('after-create-window', () => {
     notifyLinks();
+  });
+
+  // Opening the popover is a strong signal you want what's waiting on the relay.
+  mb.on('after-show', () => {
+    pollNow();
   });
 
   relayEvents.on('link-added', () => {
