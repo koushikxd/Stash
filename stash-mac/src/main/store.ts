@@ -3,7 +3,6 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
-import { getSharedSecret } from './sharedSecret';
 
 export interface Link {
   id: string;
@@ -79,18 +78,21 @@ function normalizeLink(link: Partial<Link>): Link {
   };
 }
 
+/**
+ * Atomic write. A crash or full disk mid-write would otherwise leave a truncated file,
+ * which `read()` cannot parse and would silently treat as "no links".
+ */
 function write(): void {
-  fs.writeFileSync(storePath, JSON.stringify(cache, null, 2), 'utf8');
+  const tmp = `${storePath}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(cache, null, 2), 'utf8');
+  fs.renameSync(tmp, storePath);
 }
 
 export function init(): void {
   storePath = path.join(app.getPath('userData'), 'stash-store.json');
   cache = read();
-  write();
-}
-
-export function getSecret(): string {
-  return getSharedSecret();
+  // Never write on startup: an unparseable file is kept as-is for recovery rather
+  // than being overwritten with the empty default.
 }
 
 export function getSettings(): Settings {
@@ -198,11 +200,14 @@ export function addLink(input: { url?: string | null; text?: string | null; titl
 export function removeLink(id: string): void {
   const before = cache.links.length;
   cache.links = cache.links.filter((l) => l.id !== id);
-  if (cache.links.length !== before) write();
+  if (cache.links.length === before) return;
+  write();
+  events.emit('links-changed');
 }
 
 export function clearAll(): void {
   if (cache.links.length === 0) return;
   cache.links = [];
   write();
+  events.emit('links-changed');
 }
