@@ -44,8 +44,8 @@ class ShareActivity : Activity() {
 
     private fun toastFor(r: LinkSender.Result): Int = when (r) {
         is LinkSender.Result.Sent -> R.string.toast_sent
-        is LinkSender.Result.Published -> R.string.toast_published
         is LinkSender.Result.Queued -> R.string.toast_queued
+        is LinkSender.Result.TooLarge -> R.string.toast_too_large
     }
 
     private fun toast(resId: Int) {

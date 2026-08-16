@@ -9,8 +9,8 @@ import java.util.Locale
  */
 object PayloadValidator {
 
-    // Kept below ntfy's 4096-byte body limit so the encrypted+base64 envelope
-    // (which inflates the payload) never trips ntfy's attachment conversion.
+    // A sanity ceiling on what's worth sharing, not a transport limit: LinkSender's
+    // envelope ceiling sits well above whatever this inflates to.
     const val MAX_PAYLOAD_BYTES = 2800
 
     sealed class Verdict {

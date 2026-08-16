@@ -11,18 +11,30 @@ plugins {
 // the project build but can never authenticate until configured. The SAME value
 // must be set on the Mac (stash-mac/stash.secret.json or the STASH_SHARED_SECRET
 // env var).
-val stashSharedSecret: String = run {
-    val fromEnv = System.getenv("STASH_SHARED_SECRET")
-    if (!fromEnv.isNullOrBlank()) return@run fromEnv
+fun secretsProperty(name: String): String? {
+    val fromEnv = System.getenv(name)
+    if (!fromEnv.isNullOrBlank()) return fromEnv
     val propsFile = rootProject.file("secrets.properties")
     if (propsFile.exists()) {
         val props = Properties()
         propsFile.inputStream().use { stream -> props.load(stream) }
-        val fromProps = props.getProperty("STASH_SHARED_SECRET")
-        if (!fromProps.isNullOrBlank()) return@run fromProps
+        val fromProps = props.getProperty(name)
+        if (!fromProps.isNullOrBlank()) return fromProps
     }
-    "stash-android-unconfigured-shared-secret"
+    return null
 }
+
+/** Quote a value for a generated `String` BuildConfig field. */
+fun stringLiteral(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$") + "\""
+
+val stashSharedSecret: String =
+    secretsProperty("STASH_SHARED_SECRET") ?: "stash-android-unconfigured-shared-secret"
+
+// Upstash Redis REST credentials for the relay transport. Absent values build fine;
+// the app simply can't reach the relay until they're configured.
+val upstashRestUrl: String = secretsProperty("UPSTASH_REDIS_REST_URL").orEmpty().trimEnd('/')
+val upstashRestToken: String = secretsProperty("UPSTASH_REDIS_REST_TOKEN").orEmpty()
 
 android {
     namespace = "dev.koushik.stash"
@@ -35,7 +47,9 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "STASH_SECRET", "\"$stashSharedSecret\"")
+        buildConfigField("String", "STASH_SECRET", stringLiteral(stashSharedSecret))
+        buildConfigField("String", "UPSTASH_REDIS_REST_URL", stringLiteral(upstashRestUrl))
+        buildConfigField("String", "UPSTASH_REDIS_REST_TOKEN", stringLiteral(upstashRestToken))
     }
 
     buildFeatures {

@@ -8,8 +8,8 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * End-to-end encryption for the ntfy relay. The shared secret both apps bake in is
- * stretched into a symmetric AES-256 key and into the (unguessable) topic names, so
+ * End-to-end encryption for the relay. The shared secret both apps bake in is
+ * stretched into a symmetric AES-256 key and into the (unguessable) stream names, so
  * only a device holding the secret can publish to, read from, or decrypt the relay.
  *
  * Wire format of an encrypted body: base64(IV(12) || ciphertext || GCM tag(16)),
@@ -30,7 +30,7 @@ object Crypto {
     fun key(secret: String): SecretKeySpec =
         SecretKeySpec(sha256("key:$secret"), "AES")
 
-    /** An unguessable ntfy topic derived from the secret: "st-" + 32 hex chars. */
+    /** An unguessable Redis stream key derived from the secret: "st-" + 32 hex chars. */
     fun topic(label: String, secret: String): String =
         "st-" + HexCodec.encode(sha256("topic:$label:$secret")).substring(0, 32)
 
@@ -40,17 +40,5 @@ object Crypto {
         cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))
         val ct = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
         return Base64.encodeToString(iv + ct, Base64.NO_WRAP)
-    }
-
-    fun decrypt(key: SecretKeySpec, body: String): String? = try {
-        val raw = Base64.decode(body.trim(), Base64.DEFAULT)
-        require(raw.size > IV_BYTES)
-        val iv = raw.copyOfRange(0, IV_BYTES)
-        val ct = raw.copyOfRange(IV_BYTES, raw.size)
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, iv))
-        String(cipher.doFinal(ct), Charsets.UTF_8)
-    } catch (_: Throwable) {
-        null
     }
 }

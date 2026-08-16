@@ -22,12 +22,11 @@ import java.util.concurrent.TimeUnit
  * network and retries with exponential backoff. Two schedules use this one worker:
  *
  *  - a one-time expedited request kicked off on reconnect / share (fast delivery),
- *  - a 15-minute periodic request that polls the Mac's acks and re-publishes any
- *    record still unacked past the relay's cache window.
+ *  - a 15-minute periodic sweep, so a record queued while offline still goes out
+ *    even if the phone never reconnects in a way the watcher sees.
  *
- * Awaiting-ack counts as success (it must not spin the backoff); only a publish
- * failure (offline) retries. It also expires links past the retention window and
- * raises a "stuck" notification when a record has exhausted its attempts.
+ * Only a publish failure (offline) retries. It also expires links past the retention
+ * window and raises a "stuck" notification when a record has exhausted its attempts.
  */
 class FlushQueueWorker(
     appContext: Context,
@@ -61,10 +60,11 @@ class FlushQueueWorker(
     companion object {
         private const val TAG = "FlushQueueWorker"
         private const val UNIQUE_WORK_NAME = "stash-flush-queue"
-        private const val PERIODIC_WORK_NAME = "stash-ack-poll"
+        private const val PERIODIC_WORK_NAME = "stash-flush-periodic"
+        private const val LEGACY_PERIODIC_WORK_NAME = "stash-ack-poll"
 
         /** Pending links older than this become EXPIRED instead of retrying forever. */
-        const val RETENTION_MS = 7L * 24 * 60 * 60 * 1000
+        const val RETENTION_MS = 30L * 24 * 60 * 60 * 1000
 
         fun schedule(ctx: Context) {
             val request = OneTimeWorkRequestBuilder<FlushQueueWorker>()
@@ -85,8 +85,11 @@ class FlushQueueWorker(
             )
         }
 
-        /** Poll acks and re-publish stale records every 15 minutes while records exist. */
+        /** Sweep the pending queue every 15 minutes as a safety net. */
         fun schedulePeriodic(ctx: Context) {
+            // A periodic unique work request outlives the install that created it.
+            WorkManager.getInstance(ctx.applicationContext)
+                .cancelUniqueWork(LEGACY_PERIODIC_WORK_NAME)
             val request = PeriodicWorkRequestBuilder<FlushQueueWorker>(15, TimeUnit.MINUTES)
                 .setConstraints(
                     Constraints.Builder()
