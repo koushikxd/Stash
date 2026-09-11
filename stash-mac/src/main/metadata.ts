@@ -39,10 +39,13 @@ function stripTags(input: string): string {
   return decodeEntities(input.replace(/<[^>]+>/g, ' '));
 }
 
+// og:image comes straight off an untrusted page and ends up as an <img src>. Keep it to
+// http(s) so a hostile page can't persist a huge data: blob or point at a local file.
 function absoluteUrl(value: string | null, base: string): string | null {
   if (!value) return null;
   try {
-    return new URL(value, base).toString();
+    const url = new URL(value, base);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
   } catch {
     return null;
   }
