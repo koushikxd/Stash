@@ -31,8 +31,14 @@ export interface Settings {
 
 interface StoreShape {
   links: Link[];
+  /** Mac-local reading list. Never touched by the relay. */
+  reading: Link[];
   settings: Settings;
 }
+
+type ListKey = 'links' | 'reading';
+
+const CHANGED: Record<ListKey, string> = { links: 'links-changed', reading: 'reading-changed' };
 
 const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: true,
@@ -50,11 +56,13 @@ function read(): StoreShape {
     const parsed = JSON.parse(raw) as Partial<StoreShape>;
     return {
       links: Array.isArray(parsed.links) ? parsed.links.map(normalizeLink) : [],
+      reading: Array.isArray(parsed.reading) ? parsed.reading.map(normalizeLink) : [],
       settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
     };
   } catch {
     return {
       links: [],
+      reading: [],
       settings: { ...DEFAULT_SETTINGS },
     };
   }
@@ -110,8 +118,8 @@ export function getLinks(): Link[] {
   return cache.links.slice().sort((a, b) => b.receivedAt - a.receivedAt);
 }
 
-export function updateLinkMetadata(id: string, metadata: LinkMetadata): void {
-  const link = cache.links.find((l) => l.id === id);
+function updateMetadata(key: ListKey, id: string, metadata: LinkMetadata): void {
+  const link = cache[key].find((l) => l.id === id);
   if (!link) return;
   let changed = false;
   if (metadata.title && link.title !== metadata.title) {
@@ -132,7 +140,22 @@ export function updateLinkMetadata(id: string, metadata: LinkMetadata): void {
   }
   if (!changed) return;
   write();
-  events.emit('links-changed');
+  events.emit(CHANGED[key]);
+}
+
+function removeFrom(key: ListKey, id: string): void {
+  const before = cache[key].length;
+  cache[key] = cache[key].filter((l) => l.id !== id);
+  if (cache[key].length === before) return;
+  write();
+  events.emit(CHANGED[key]);
+}
+
+function clearList(key: ListKey): void {
+  if (cache[key].length === 0) return;
+  cache[key] = [];
+  write();
+  events.emit(CHANGED[key]);
 }
 
 function hostnameOf(url: string): string {
@@ -160,35 +183,44 @@ function canonicalText(text: string): string {
   return text.trim().replace(/\s+/g, ' ');
 }
 
-export function addLink(input: { url?: string | null; text?: string | null; title?: string | null; sentAt?: number }): { link: Link; created: boolean } {
-  const receivedAt = input.sentAt ?? Date.now();
-  const url = input.url ?? null;
-  const text = canonicalText(input.text || url || '');
-  const existing = url
-    ? cache.links.find((link) => link.url && canonicalUrl(link.url) === canonicalUrl(url))
-    : cache.links.find((link) => !link.url && canonicalText(link.text) === text);
-  if (existing) {
-    existing.kind = url ? 'link' : 'text';
-    existing.text = text;
-    existing.url = url;
-    existing.hostname = url ? hostnameOf(url) : '';
-    existing.receivedAt = Math.min(existing.receivedAt, receivedAt);
-    if (input.title && existing.title !== input.title) existing.title = input.title;
-    write();
-    return { link: existing, created: false };
-  }
-  const link: Link = {
+function findDuplicate(list: Link[], url: string | null, text: string): Link | undefined {
+  return url
+    ? list.find((link) => link.url && canonicalUrl(link.url) === canonicalUrl(url))
+    : list.find((link) => !link.url && canonicalText(link.text) === text);
+}
+
+function makeLink(url: string | null, text: string, title: string | null, receivedAt: number): Link {
+  return {
     id: randomUUID(),
     kind: url ? 'link' : 'text',
     text,
     url,
-    title: input.title ?? null,
+    title,
     description: null,
     image: null,
     siteName: null,
     hostname: url ? hostnameOf(url) : '',
     receivedAt,
   };
+}
+
+export function addLink(input: { url?: string | null; text?: string | null; title?: string | null; sentAt?: number }): { link: Link; created: boolean } {
+  const receivedAt = input.sentAt ?? Date.now();
+  const url = input.url ?? null;
+  const text = canonicalText(input.text || url || '');
+  const existing = findDuplicate(cache.links, url, text);
+  if (existing) {
+    existing.kind = url ? 'link' : 'text';
+    existing.text = text;
+    existing.url = url;
+    existing.hostname = url ? hostnameOf(url) : '';
+    // A re-share must not jump the inbox order.
+    existing.receivedAt = Math.min(existing.receivedAt, receivedAt);
+    if (input.title && existing.title !== input.title) existing.title = input.title;
+    write();
+    return { link: existing, created: false };
+  }
+  const link = makeLink(url, text, input.title ?? null, receivedAt);
   cache.links.push(link);
   if (cache.links.length > cache.settings.maxHistory) {
     cache.links.splice(0, cache.links.length - cache.settings.maxHistory);
@@ -198,16 +230,71 @@ export function addLink(input: { url?: string | null; text?: string | null; titl
 }
 
 export function removeLink(id: string): void {
-  const before = cache.links.length;
-  cache.links = cache.links.filter((l) => l.id !== id);
-  if (cache.links.length === before) return;
-  write();
-  events.emit('links-changed');
+  removeFrom('links', id);
 }
 
 export function clearAll(): void {
-  if (cache.links.length === 0) return;
-  cache.links = [];
+  clearList('links');
+}
+
+export function updateLinkMetadata(id: string, metadata: LinkMetadata): void {
+  updateMetadata('links', id, metadata);
+}
+
+// --- reading list ---------------------------------------------------------------
+
+export function getReading(): Link[] {
+  return cache.reading.slice().sort((a, b) => b.receivedAt - a.receivedAt);
+}
+
+/**
+ * Unlike addLink, this emits on its own: the reading list has no relay to emit for it.
+ * Re-adding an item bumps it to the top, and the list is never trimmed — every entry
+ * here is a deliberate save.
+ */
+export function addReading(input: { url?: string | null; text?: string | null }): { item: Link; created: boolean } {
+  const url = input.url ?? null;
+  const text = canonicalText(input.text || url || '');
+  const existing = findDuplicate(cache.reading, url, text);
+  if (existing) {
+    existing.receivedAt = Date.now();
+    write();
+    events.emit('reading-changed');
+    return { item: existing, created: false };
+  }
+  const item = makeLink(url, text, null, Date.now());
+  cache.reading.push(item);
   write();
-  events.emit('links-changed');
+  events.emit('reading-changed');
+  return { item, created: true };
+}
+
+/** Replaces the target, so stale metadata from the previous url is cleared. */
+export function updateReading(id: string, input: { url?: string | null; text?: string | null }): Link | null {
+  const item = cache.reading.find((l) => l.id === id);
+  if (!item) return null;
+  const url = input.url ?? null;
+  item.kind = url ? 'link' : 'text';
+  item.text = canonicalText(input.text || url || '');
+  item.url = url;
+  item.hostname = url ? hostnameOf(url) : '';
+  item.title = null;
+  item.description = null;
+  item.image = null;
+  item.siteName = null;
+  write();
+  events.emit('reading-changed');
+  return item;
+}
+
+export function removeReading(id: string): void {
+  removeFrom('reading', id);
+}
+
+export function clearReading(): void {
+  clearList('reading');
+}
+
+export function updateReadingMetadata(id: string, metadata: LinkMetadata): void {
+  updateMetadata('reading', id, metadata);
 }

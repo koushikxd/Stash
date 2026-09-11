@@ -4,6 +4,7 @@ import { menubar, Menubar } from 'menubar';
 import * as store from './store';
 import { events as relayEvents, getStatus as getRelayStatus, getRelayHost, pollNow } from './relay';
 import { getFavicon } from './favicon';
+import { fetchMetadata } from './metadata';
 
 const ASSETS = path.join(app.getAppPath(), 'assets');
 const ICON_IDLE = path.join(ASSETS, 'iconTemplate.png');
@@ -38,6 +39,37 @@ function broadcast(channel: string, ...args: unknown[]): void {
 
 function notifyLinks(): void {
   broadcast('links-updated');
+}
+
+function httpUrl(value: string): URL | null {
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reading items are typed or pasted here, so unlike relayed links they are not already
+ * validated by the phone. Anything with whitespace or no dotted host is treated as text.
+ */
+function toUrl(raw: string): string | null {
+  const t = raw.trim();
+  if (!t || /\s/.test(t)) return null;
+  const u = httpUrl(/^https?:\/\//i.test(t) ? t : `https://${t}`);
+  return u && u.hostname.includes('.') ? u.toString() : null;
+}
+
+function enrichReading(id: string, url: string): void {
+  void fetchMetadata(url).then((metadata) => {
+    if (!metadata) return;
+    // Reading items are editable, so the url may have changed while this was in flight.
+    // Applying by id alone would paint the old page's title and image onto the new one.
+    if (store.getReading().find((item) => item.id === id)?.url !== url) return;
+    // updateReadingMetadata emits 'reading-changed', which pushes the update itself.
+    store.updateReadingMetadata(id, metadata);
+  });
 }
 
 function openSettings(): void {
@@ -79,11 +111,39 @@ function registerIpc(): void {
   ipcMain.handle('stash:clearAll', () => {
     store.clearAll();
   });
+  ipcMain.handle('stash:getReading', () => store.getReading());
+  ipcMain.handle('stash:addReadingFromClipboard', () => {
+    const raw = clipboard.readText();
+    const url = toUrl(raw);
+    if (!url) return { added: false, text: raw.trim() };
+    const { item } = store.addReading({ url, text: url });
+    enrichReading(item.id, url);
+    return { added: true };
+  });
+  ipcMain.handle('stash:addReading', (_evt, text: string) => {
+    const url = toUrl(text);
+    const { item } = store.addReading({ url, text: url ?? text });
+    if (url) enrichReading(item.id, url);
+  });
+  ipcMain.handle('stash:updateReading', (_evt, id: string, text: string) => {
+    const url = toUrl(text);
+    const item = store.updateReading(id, { url, text: url ?? text });
+    if (item && url) enrichReading(item.id, url);
+  });
+  ipcMain.handle('stash:removeReading', (_evt, id: string) => {
+    store.removeReading(id);
+  });
+  ipcMain.handle('stash:clearReading', () => {
+    store.clearReading();
+  });
+
   ipcMain.handle('stash:copy', (_evt, text: string) => {
     clipboard.writeText(text);
   });
+  // openExternal hands the URL to macOS, so anything but http(s) could launch another app.
+  // Inbox links arrive from the phone and are never validated on this side.
   ipcMain.handle('stash:open', (_evt, url: string) => {
-    void shell.openExternal(url);
+    if (httpUrl(url)) void shell.openExternal(url);
   });
   ipcMain.handle('stash:getFavicon', (_evt, hostname: string) => getFavicon(hostname));
 
@@ -150,6 +210,11 @@ export function init(): void {
   store.events.on('links-changed', () => {
     refreshIcon();
     notifyLinks();
+  });
+
+  // No refreshIcon() here: the tray badge stays inbox-only.
+  store.events.on('reading-changed', () => {
+    broadcast('reading-updated');
   });
 }
 
