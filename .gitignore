@@ -10,9 +10,7 @@ stash-android/**/*.iml
 stash-android/*.jks
 stash-android/*.keystore
 
-stash-mac/node_modules/
-stash-mac/dist/
-stash-mac/out/
+stash-mac/.build/
 stash-mac/release/
 
 # Shared secret — never commit. Each machine configures its own copy.
