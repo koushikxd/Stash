@@ -1,0 +1,14 @@
+{
+ "name": "stash",
+ "direction": "Tucked away",
+ "palette": {
+  "ink": "#1C1C1E",
+  "paper": "#FFFFFF",
+  "accent": "#000000",
+  "neutral": "#8E8E93",
+  "tint": "#F2F2F7"
+ },
+ "fonts": [
+  "Space Grotesk"
+ ]
+}
