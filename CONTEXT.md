@@ -25,8 +25,9 @@ Key facts about the product:
   exactly once, so the record goes straight to SENT. If the phone is offline the
   record stays PENDING and publishes later. The Android app has a **Links screen**
   showing Pending / Sent / Failed, with retry.
-- **The Mac UI is a menubar popover.** A `menubar` BrowserWindow rendering metadata
-  cards (favicon, title, description, source), plus a separate Settings window. See §5.
+- **The Mac UI is a menubar popover.** An `NSPopover` hosting SwiftUI: metadata cards
+  (thumbnail or favicon, title, description, source) in Inbox and Reading tabs, with
+  settings shown inline in the same popover. See §5.
 - **No pairing.** There is no QR scan, no IP entry, no "pair" screen. Both apps bake
   in the same **shared secret**; it is stretched into the encryption key *and* into
   the unguessable relay stream names, so only a device holding the secret can read
@@ -60,7 +61,7 @@ deleted. The encrypted wire format for links is unchanged.
 ```
 ┌──────────────────────────┐       Upstash Redis Stream   ┌──────────────────────────┐
 │  Android (stash-android)  │      (public internet)       │   Mac (stash-mac)         │
-│  Kotlin, Views/XML        │                              │   Electron + TypeScript   │
+│  Kotlin, Views/XML        │                              │   Swift 6 + SwiftUI       │
 │                           │  XADD encrypted link ──────► │   menubar app             │
 │  Share sheet → enqueue    │       (one stream)           │   XRANGE poll (30s / 5m)  │
 │  → encrypt → publish ─────┼──────────────────────────────┼─► decrypt → store → menu  │
@@ -106,11 +107,11 @@ files, with an env-var override and a build-safe placeholder.
 | App | Reads from (first hit wins) | File / field |
 |-----|------------------------------|--------------|
 | Android | `STASH_SHARED_SECRET` env → `secrets.properties` → placeholder | `stash-android/secrets.properties` key `STASH_SHARED_SECRET`, surfaced as `BuildConfig.STASH_SECRET` (wired in `app/build.gradle.kts`) |
-| Mac | `STASH_SHARED_SECRET` env → `stash.secret.json` → placeholder | `stash-mac/stash.secret.json` field `sharedSecret`, read by `src/main/sharedSecret.ts` |
+| Mac | `STASH_SHARED_SECRET` env → `stash.secret.json` (no secret: the relay stays off) | `stash-mac/stash.secret.json` field `sharedSecret`, read by `Sources/Stash/Config.swift` |
 
 Both files are **gitignored** and must hold the *same* value. The secret is no
 longer a bearer token — it is the input to both the AES key and the stream names
-(`util/Crypto.kt` on Android, the crypto helpers in `src/main/relay.ts` on the Mac,
+(`util/Crypto.kt` on Android, `Sources/Stash/Crypto.swift` on the Mac,
 which derive identically). If the two sides disagree they use different streams *and*
 can't decrypt each other, so delivery goes silent — if links never arrive, check that
 both secret files exist and match.
@@ -190,65 +191,47 @@ Stack: Kotlin, **Views/XML** (not Compose), Material3, OkHttp, WorkManager.
 
 ## 5. Mac implementation (`stash-mac`)
 
-Stack: Electron + TypeScript (strict). Menubar app. No native deps for transport.
+Stack: Swift 6 + SwiftUI, SwiftPM only (built with the Command Line Tools, no Xcode),
+macOS 15+, no dependencies. A single-threaded menubar app: everything runs on the main
+actor, and networking is async/await on one ephemeral `URLSession`. Data lives in
+`~/Library/Application Support/dev.koushik.stash/`. On first launch it copies the old
+Electron app's data from `.../stash-mac/` once, and leaves that folder in place.
 
-The UI is a **preloaded menubar popover** (`menubar` package) plus a separate Settings
-window, talking to the main process over a `contextIsolation` preload bridge. Keeping
-the window preloaded costs resident memory (measured ~344 MB across 4 processes,
-packaged, at 20s uptime) and buys an instant popover that can render metadata cards.
-
-- **`src/main/relay.ts`** — the whole relay client (was `ntfy.ts`). Derives the
-  key/stream name (mirrors `util/Crypto.kt`) and runs a **non-overlapping recursive
-  poll**: each pass XRANGEs the stream from the stored cursor and only schedules the
-  next pass after it finishes, so a slow request can't stack. The interval is
-  **30s when the Mac is in use, 5 min once `powerMonitor.getSystemIdleTime()` passes
-  5 minutes** — a backlog is never lost, only delayed, and wake/unlock/popover-open force
-  an immediate poll. An `AbortController` + 20s request timeout keep `stop`/`pollNow`
-  immediate. For each entry: decrypt (silent drop on failure) → validate `v/t/text` →
-  `store.addLink` → emit `link-added`/`link-updated` → enrich metadata; the cursor is
-  persisted per handled entry, and a *storage* failure stops the pass without advancing
-  it. Wake, unlock, and popover-open all force an immediate poll. Status: any answered request — **including an empty page** — sets connected and
-  `lastEventAt`; a failure sets disconnected but preserves the last successful
-  timestamp. Persists `{ cursor }` to `userData/stash-relay.json`. Exports `events` /
-  `start` / `stop` / `pollNow` / `getStatus` / `getRelayHost`.
-- **`src/main/store.ts`** — link storage (`userData/stash-store.json`), dedupe by
-  canonical URL/text, metadata updates. Emits `links-changed` on removal and clear;
-  arrivals reach the tray through the relay's own `link-added`. Between them the tray
-  icon stays in sync.
-- **`src/main/sharedSecret.ts`** — resolves the shared secret *and* the Upstash
-  URL/token (see §3), parsing `stash.secret.json` once and caching it.
-- **`src/main/main.ts`** — lifecycle: `disableHardwareAcceleration()` →
-  `store.init()` → `tray.init()` → `relay.start()`. `powerMonitor` `resume` and
-  `unlock-screen` call `relay.pollNow()`. `before-quit` → `relay.stop()`. There is
-  deliberately **no network-change watcher**: with polling, a failed poll just succeeds
-  on the next one, so the old 5s interface-fingerprint timer was pure overhead.
-- **`src/main/tray.ts`** — owns the menubar popover, the Settings window, and every
-  `stash:*` IPC handler. Opening the popover fires `pollNow()`. The renderer is pushed
-  a fresh list on `link-added` / `link-updated` / `links-changed`; the tray icon
-  switches between idle and unread on the same signals.
-- **`src/renderer/stashover.*`** — the popover itself: one card per link (favicon,
-  title, description, source · age), a trash button that clears all, and a gear that
-  opens Settings. **Clicking a card copies the link and then removes it** (a 220ms
-  checkmark, then `removeLink`); the open-in-browser button stops propagation.
-- **`src/main/favicon.ts`** — per-hostname favicon fetch + cache for the popover cards.
-- **`src/main/metadata.ts`** — link title/description/`og:site_name` enrichment, fetched
-  once per link on arrival and written back through `store.updateLinkMetadata`.
+- **`Relay.swift`**: the relay client. One loop task: poll, then sleep 30s while the
+  Mac is in use or 5 min once input has been idle 5 minutes. `pollNow()` (wake, unlock,
+  popover open, settings open) cancels the sleep, never a running pass. Each pass
+  XRANGEs from the stored cursor, draining full pages back to back. For each entry:
+  decrypt (drop on failure) → validate `v/t/text` → `store.addLink` → enrich metadata.
+  The cursor (`stash-relay.json`) is saved per handled entry, and a store write that
+  throws stops the pass without advancing it. Never starts without a shared secret.
+- **`Crypto.swift`**: key and stream derivation plus AES-GCM decrypt (CryptoKit).
+- **`Store.swift`**: `stash-store.json` (same shape as the Electron store): inbox
+  links and the Mac-local reading list, dedupe by canonical URL/text, metadata
+  write-back, undo restore. Writes are atomic and published only after they succeed.
+  If the file can't be parsed, the store goes read-only rather than overwrite it.
+- **`Config.swift`**: resolves the secret and Upstash URL/token (env, then the
+  bundled `stash.secret.json`, then the working directory).
+- **`AppDelegate.swift`**: status item (idle/unread icon from inbox state), the
+  popover, wake/unlock observers, single instance, launch at login (`SMAppService`).
+- **`Views/`**: `PopoverView` (toolbar with tabs, `+`, clear, settings; undo bar),
+  `ItemRow` (card: click copies, and in Inbox also removes; hover actions; context
+  menu), `InputRow`, `SettingsView`.
+- **`Metadata.swift`**, **`Favicons.swift`**, **`Thumbnails.swift`**: page
+  metadata (with an X oEmbed fallback), favicon cache, downsampled og:image cache.
 
 ## 6. Build & run
 
 **Mac:**
 ```bash
-cd stash-mac && pnpm install && npm run build && npm start   # or: npm run dev
-./node_modules/.bin/tsc -p tsconfig.json --noEmit            # typecheck only
-npm run dist                                                 # DMG → release/
+cd stash-mac
+swift build -c release -Xswiftc -warnings-as-errors   # compile check
+scripts/build-app.sh                                   # release/stash.app + release/stash.dmg
 ```
 
-`pnpm-workspace.yaml` must keep `allowBuilds: electron: true`, or pnpm skips
-Electron's postinstall and the binary is never downloaded ("Electron failed to install
-correctly"). Packaging is configured by the **`build` field in `package.json`**;
-`electron-builder.yml` is stale and ignored (electron-builder logs which one it
-loaded). Only `package.json` carries the `extraResources` entry that bundles
-`stash.secret.json`, which is why a DMG install needs no configuration.
+`build-app.sh` bundles `stash.secret.json` into the app, so an installed build needs
+no configuration. Views store `State<T>` values instead of using `@State`: in this
+SDK `@State` is a macro whose plugin ships only with Xcode. Launch at login needs the
+app in `/Applications`.
 
 **Android:** requires a **JDK 17–21** (Gradle 8.5 cannot parse JDK 26 — if you see
 `IllegalArgumentException: 26` at settings evaluation, that's the JDK). The Android
@@ -300,7 +283,7 @@ Watch the Mac menu **and** the Android Links screen:
 
 ## 8. Gotchas for future edits
 
-- **Keep the crypto byte-compatible.** `util/Crypto.kt` and the helpers in `relay.ts`
+- **Keep the crypto byte-compatible.** `util/Crypto.kt` and `Crypto.swift`
   must agree exactly: key = `SHA-256("key:"+secret)`, stream name from `"topic:main:"`
   (the `topic:` prefix is kept so existing streams still resolve), body =
   `base64(IV(12)||ct||tag(16))` no-wrap. Change one side → change both.

@@ -8,7 +8,7 @@ Because the relay *stores* messages (30-day retention) rather than broadcasting 
 
 ## Apps
 
-- `stash-mac`: Electron menubar app. Polls the relay stream, decrypts incoming links, and lists them in a **menubar popover** with title, description, and favicon.
+- `stash-mac`: native Swift + SwiftUI menubar app (macOS 15+). Polls the relay stream, decrypts incoming links, and lists them in a **menubar popover** with title, description, and thumbnail. It also keeps a Mac-local **Reading** list.
 - `stash-android`: Kotlin app. Appears in the Android share sheet, encrypts what you share, publishes it to the relay, and queues on disk if you're offline.
 
 ---
@@ -53,13 +53,12 @@ Both apps also accept `STASH_SHARED_SECRET`, `UPSTASH_REDIS_REST_URL`, and `UPST
 
 ### Step 4 — Install on Mac
 
-Requires Node.js + [pnpm](https://pnpm.io).
+Requires the Xcode Command Line Tools (`xcode-select --install`). Xcode itself is not needed.
 
 ```sh
 cd stash-mac
-pnpm install
-pnpm run dist
-open release/stash-0.1.0-arm64.dmg
+scripts/build-app.sh
+open release/stash.dmg
 ```
 
 In the DMG window, drag `stash` into **Applications**, then launch it. It runs **in the menu bar only**: no dock icon, no window at all. Everything in `stash.secret.json` (shared secret *and* relay credentials) is bundled into the app automatically, so the installed app needs no configuration.
@@ -83,7 +82,7 @@ From any app on your phone, tap **Share** → **stash**. The link (or text) appe
 - **Sent to Mac** → it's on the relay stream. Delivery is guaranteed from here: the entry is stored for 30 days and the Mac reads it whenever it next runs.
 - **Saved, will send when back online** → your *phone* had no connection. It's on disk and goes out as soon as connectivity returns (or on your next share).
 
-Click the menubar icon to open the popover. Each card shows the favicon, title, description, and source. **Click a card to copy the link — this also removes it from the list.** Use the open button to send it to your browser instead, the trash icon to clear everything, and the gear for settings.
+Click the menubar icon to open the popover. Each card shows a thumbnail or favicon, title, description, and source. **Click a card in Inbox to copy the link; this also removes it.** In Reading, clicking copies and keeps it. Hover a card for open and delete, or right-click it for every action. `+` adds the clipboard to the current tab, the trash icon clears it, and the gear opens settings. Deleting, copying out of Inbox, and clearing can all be undone from the bar that appears at the bottom. Right-click the menubar icon to quit.
 
 Polling is every 30 seconds while you're using the Mac, backing off to 5 minutes once it's been idle for a while. Waking, unlocking, or just opening the popover forces an immediate check, so nothing sits waiting when you actually go looking for it.
 
@@ -104,7 +103,7 @@ cd stash-android
 ./gradlew assembleRelease
 ```
 
-**Mac** builds are currently unsigned/un-notarized (fine for personal use). For a signed/notarized build you'd need an Apple Developer ID; the packaging metadata lives in `stash-mac/package.json` under the `build` field.
+**Mac** builds are currently unsigned/un-notarized (fine for personal use). `scripts/build-app.sh` ad-hoc signs the app. For a signed/notarized build you'd need an Apple Developer ID.
 
 ## Troubleshooting
 
