@@ -138,7 +138,6 @@ final class Store {
   var settings: Settings { file.settings }
 
   init() {
-    Self.importLegacyData()
     guard FileManager.default.fileExists(atPath: Self.fileURL.path) else { return }
     do {
       file = try JSONDecoder().decode(StoreFile.self, from: Data(contentsOf: Self.fileURL))
@@ -305,28 +304,5 @@ final class Store {
       return list.firstIndex { $0.url.map(canonicalURL) == key }
     }
     return list.firstIndex { $0.url == nil && canonicalText($0.text) == text }
-  }
-
-  /// One-time copy of the former Electron app's data. Copies, never moves, so its folder
-  /// stays as a backup. The store file goes last so a failed import is retried on the
-  /// next launch.
-  private static func importLegacyData() {
-    let manager = FileManager.default
-    let legacy = URL.applicationSupportDirectory.appending(path: "stash-mac", directoryHint: .isDirectory)
-    guard !manager.fileExists(atPath: fileURL.path),
-          manager.fileExists(atPath: legacy.appending(path: "stash-store.json").path)
-    else { return }
-    do {
-      try manager.createDirectory(at: appDataDirectory, withIntermediateDirectories: true)
-      for name in ["stash-relay.json", "favicons", "stash-store.json"] {
-        let source = legacy.appending(path: name)
-        let destination = appDataDirectory.appending(path: name)
-        guard manager.fileExists(atPath: source.path), !manager.fileExists(atPath: destination.path) else { continue }
-        try manager.copyItem(at: source, to: destination)
-      }
-      log.notice("Imported data from the Electron app")
-    } catch {
-      log.error("Importing data from the Electron app failed: \(error)")
-    }
   }
 }

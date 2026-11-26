@@ -194,8 +194,7 @@ Stack: Kotlin, **Views/XML** (not Compose), Material3, OkHttp, WorkManager.
 Stack: Swift 6 + SwiftUI, SwiftPM only (built with the Command Line Tools, no Xcode),
 macOS 15+, no dependencies. A single-threaded menubar app: everything runs on the main
 actor, and networking is async/await on one ephemeral `URLSession`. Data lives in
-`~/Library/Application Support/dev.koushik.stash/`. On first launch it copies the old
-Electron app's data from `.../stash-mac/` once, and leaves that folder in place.
+`~/Library/Application Support/dev.koushik.stash/`.
 
 - **`Relay.swift`**: the relay client. One loop task: poll, then sleep 30s while the
   Mac is in use or 5 min once input has been idle 5 minutes. `pollNow()` (wake, unlock,

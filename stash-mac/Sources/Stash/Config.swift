@@ -1,6 +1,6 @@
 import Foundation
 
-/// `~/Library/Application Support/dev.koushik.stash/`. Not the Electron folder, which is `stash-mac`.
+/// `~/Library/Application Support/dev.koushik.stash/`.
 let appDataDirectory = URL.applicationSupportDirectory.appending(path: "dev.koushik.stash", directoryHint: .isDirectory)
 
 extension URLSession {
