@@ -1,8 +1,8 @@
 # stash
 
-Send links and text from your Android phone to a Mac menubar app — from **any** network (home Wi-Fi, office, mobile data). No accounts, no cloud database, no pairing, no same-Wi-Fi requirement.
+Send links and text from your Android phone to a Mac menubar app, from **any** network (home Wi-Fi, office, mobile data). No accounts, no cloud database, no pairing, no same-Wi-Fi requirement.
 
-Delivery rides on an [Upstash](https://upstash.com) Redis Stream, but everything is **end-to-end encrypted** (AES-256-GCM). A single shared secret — baked into both apps at build time — is the only thing that ties your phone to your Mac. The relay only ever stores ciphertext.
+Delivery rides on an [Upstash](https://upstash.com) Redis Stream, but everything is **end-to-end encrypted** (AES-256-GCM). A single shared secret, baked into both apps at build time, is the only thing that ties your phone to your Mac. The relay only ever stores ciphertext.
 
 Because the relay *stores* messages (30-day retention) rather than broadcasting them, your Mac doesn't have to be awake. Share something with the laptop shut; it's waiting there the next time the app polls.
 
@@ -15,7 +15,7 @@ Because the relay *stores* messages (30-day retention) rather than broadcasting 
 
 ## Setup
 
-### Step 1 — Create the shared secret (do this first)
+### Step 1: Create the shared secret (do this first)
 
 Both apps must be built with the **exact same** secret. Generate one:
 
@@ -23,13 +23,13 @@ Both apps must be built with the **exact same** secret. Generate one:
 openssl rand -base64 24
 ```
 
-Then write that identical value into **both** files (both are gitignored — the secret never lands in git):
+In Step 3 you write that identical value into **both** files. Both are gitignored, so the secret never lands in git.
 
-### Step 2 — Create an Upstash Redis database
+### Step 2: Create an Upstash Redis database
 
 Create a free Redis database at [console.upstash.com](https://console.upstash.com) and copy its **REST URL** and **REST token**. This is the relay; both apps talk to it directly over HTTPS.
 
-### Step 3 — Write both into the two gitignored files
+### Step 3: Write both into the two gitignored files
 
 **`stash-mac/stash.secret.json`**
 ```json
@@ -51,7 +51,7 @@ UPSTASH_REDIS_REST_TOKEN=PASTE_THE_REST_TOKEN
 
 Both apps also accept `STASH_SHARED_SECRET`, `UPSTASH_REDIS_REST_URL`, and `UPSTASH_REDIS_REST_TOKEN` as environment variables, which take priority over the files.
 
-### Step 4 — Install on Mac
+### Step 4: Install on Mac
 
 Requires the Xcode Command Line Tools (`xcode-select --install`). Xcode itself is not needed.
 
@@ -71,13 +71,13 @@ Because the build is unsigned, macOS Gatekeeper blocks it on first launch. Eithe
   xattr -dr com.apple.quarantine /Applications/stash.app
   ```
 
-### Step 5 — Install on Android
+### Step 5: Install on Android
 
 Open `stash-android` in **Android Studio**, connect your phone (USB debugging on), pick it in the device picker, and click **Run**. Android Studio handles the JDK and build; the secret and relay credentials from `secrets.properties` are compiled in automatically.
 
-### Step 6 — Use it
+### Step 6: Use it
 
-From any app on your phone, tap **Share** → **stash**. The link (or text) appears in the Mac menubar menu on its next poll, from any network.
+From any app on your phone, tap **Share** → **stash**. The link (or text) appears in the Mac menubar popover on its next poll, from any network.
 
 - **Sent to Mac** → it's on the relay stream. Delivery is guaranteed from here: the entry is stored for 30 days and the Mac reads it whenever it next runs.
 - **Saved, will send when back online** → your *phone* had no connection. It's on disk and goes out as soon as connectivity returns (or on your next share).
@@ -107,12 +107,12 @@ cd stash-android
 
 ## Troubleshooting
 
-- **Nothing arrives on the Mac.** Almost always a secret mismatch — verify `stash.secret.json` and `secrets.properties` hold byte-for-byte identical values, then rebuild both. The Mac logs `shared secret configured = true` and `relay credentials configured = true` on startup; if either says `false` (or it warns about a PLACEHOLDER), that file wasn't found or is missing a field.
-- **The popover header says "Offline".** The Mac can't reach the relay: check the Upstash URL/token, and that the database still exists in the console. Note the phone will still say "Sent to Mac" in this case, because publishing succeeded; the phone has no way to know the Mac is unreachable.
+- **Nothing arrives on the Mac.** Almost always a secret mismatch. Verify `stash.secret.json` and `secrets.properties` hold byte-for-byte identical values, then rebuild both. Run `log stream --predicate 'subsystem == "dev.koushik.stash"'` and relaunch the app. `No shared secret configured` or `credentials configured: false` means `stash.secret.json` was missing or incomplete when the app was built.
+- **Settings says "Connecting to relay…" and never turns green.** The Mac can't reach the relay: check the Upstash URL/token, and that the database still exists in the console. Note the phone will still say "Sent to Mac" in this case, because publishing succeeded; the phone has no way to know the Mac is unreachable.
 - **A link takes up to 30 seconds to appear.** That's the poll interval, by design (5 minutes if the Mac has been idle). Opening the popover, waking, or unlocking forces an immediate poll.
-- **No menubar icon after install.** Reinstall from the latest `release/stash-0.1.0-arm64.dmg` (quit the old copy first with `killall stash`), then replace the app in Applications.
-- **App shows in the dock.** It shouldn't — the packaged app sets `LSUIElement`, making it menubar-only. If you see a dock icon, you're running an older build; rebuild and reinstall.
-- **Gatekeeper won't open it.** See the `xattr` command in Step 2.
+- **No menubar icon after install.** Quit the old copy with `killall stash`, rebuild, and replace the app in Applications from `release/stash.dmg`.
+- **App shows in the dock.** It shouldn't. The app sets `LSUIElement`, making it menubar-only. If you see a dock icon, you're running an older build; rebuild and reinstall.
+- **Gatekeeper won't open it.** See the `xattr` command in Step 4.
 - **Titles are missing.** Some sites block metadata fetches; the hostname fallback is expected.
 
 ## Architecture
